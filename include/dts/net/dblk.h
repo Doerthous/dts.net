@@ -1,5 +1,5 @@
-#ifndef DATA_BLOCK_H_
-#define DATA_BLOCK_H_
+#ifndef DBLK_H_
+#define DBLK_H_
 
 #include <dts_net_dblk.h>
 
@@ -35,4 +35,4 @@ static inline dblk_t DATA_BLOCK1(uint8_t *_data, uint16_t _size)
 #define dblk_delete1 dts_net_dblk_delete1
 #define dblk_delete2 dts_net_dblk_delete2
 
-#endif // DATA_BLOCK_H_
+#endif // DBLK_H_

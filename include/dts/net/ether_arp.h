@@ -1,0 +1,15 @@
+#ifndef ETHER_ARP_H_
+#define ETHER_ARP_H_
+
+#include <dts_net_ether_arp.h>
+
+#define nif_t dts_net_nif_t
+#define ether_arp_ti_t dts_net_ether_arp_ti_t
+#define ether_arp_ask_ip dts_net_ether_arp_ask_ip
+#define ether_arp_get_mac_address dts_net_ether_arp_get_mac_address
+#define ether_arp_ether_recv dts_net_ether_arp_ether_recv
+#define ether_arp_resgiter_pair dts_net_ether_arp_resgiter_pair
+#define ether_arp_get_ip dts_net_ether_arp_get_ip
+#define ether_arp_get_ip_by_addr dts_net_ether_arp_get_ip_by_addr
+
+#endif // ETHER_ARP_H_

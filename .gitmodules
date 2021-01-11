@@ -1,0 +1,3 @@
+[submodule "dts.datastruct"]
+	path = dts.datastruct
+	url = https://github.com/Doerthous/dts.datastruct.git

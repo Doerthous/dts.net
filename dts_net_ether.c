@@ -93,7 +93,7 @@ int ether_unpack(ether_frame_t *frame)
 
 int ether_ll_recv(ether_t* ether, ether_frame_t *frame)
 {
-    dblk_alloc_from_stack(&frame->payload, NULL, 0);
+    dblk_new_from_stack(&frame->payload, NULL, 0);
 
     frame->data_size = ether->recv(ether->interface,
         frame->data, frame->data_size);

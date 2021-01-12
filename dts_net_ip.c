@@ -136,14 +136,14 @@ ip_new_packets
     dblk_t *ip_data = NULL;
     
     if (size < mtu) {
-        ip_data = dblk_new1(data, size);
+        ip_data = dblk_new(data, size);
         if (!ip_data) {
             return NULL;
         }
 
-		ip_header = dblk_new2(64);
+		ip_header = dblk_new_with_data(64);
         if (!ip_header) {
-            dblk_delete1(ip_data);
+            dblk_delete_all(ip_data);
             return NULL;
         }
 
@@ -200,7 +200,7 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
 #include <dts/net/udp.h>
 void ip_ll_recv(ip_t *ip, ip_datagram_t *datagram)
 {
-    dblk_alloc_from_stack(&datagram->payload, NULL, 0);
+    dblk_new_from_stack(&datagram->payload, NULL, 0);
     if (ip_unpack(datagram)) {
         switch (datagram->header.protocol) {
             case IP_PROTOCOL_ICMP:

@@ -38,12 +38,15 @@ dblk_t *dblk_init(dblk_t *dblk, uint8_t *data, uint16_t size)
     return dblk;
 }
 
-uint32_t dblk_size(dblk_t *dblk)
+size_t dblk_size(dblk_t *dblk)
 {
-    uint32_t size = 0;
+    size_t size = 0;
 
     while (dblk) {
         size += dblk->size;
+        if (!dblk->more) {
+            break;
+        }
         dblk = dblk->next;
     }
 
@@ -51,7 +54,7 @@ uint32_t dblk_size(dblk_t *dblk)
 }
 
 
-dblk_t *dblk_new1(uint8_t *data, uint32_t size)
+dblk_t *dblk_new(uint8_t *data, size_t size)
 {
     dblk_t *dblk;
 
@@ -64,7 +67,7 @@ dblk_t *dblk_new1(uint8_t *data, uint32_t size)
     return dblk;
 }
 
-dblk_t *dblk_new2(uint32_t size)
+dblk_t *dblk_new_with_data(size_t size)
 {
     dblk_t *dblk;
 
@@ -86,14 +89,14 @@ dblk_t *dblk_new2(uint32_t size)
     return dblk;
 }
 
-void dblk_delete1(dblk_t * dblk)
+void dblk_delete_all(dblk_t * dblk)
 {
     while (dblk) {
-        dblk = dblk_delete2(dblk);
+        dblk = dblk_delete(dblk);
     }
 }
 
-dblk_t *dblk_delete2(dblk_t * dblk)
+dblk_t *dblk_delete(dblk_t * dblk)
 {
     dblk_t *p;
     int more;

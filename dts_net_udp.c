@@ -192,7 +192,7 @@ static int _sendto(ip_t *ip, ip_addr_t *dist,
     ip_datagram.header.destination_address = dist->addr.v4;
     
     uint8_t udp_header[8];
-	dblk_alloc_from_stack(&ip_datagram.payload, udp_header, 8);
+	dblk_new_from_stack(&ip_datagram.payload, udp_header, 8);
     dblk_t udp_payload_dblk = DATA_BLOCK(data, size);
     ip_datagram.payload->next = &udp_payload_dblk;
     ip_datagram.payload->more = 1;

@@ -21,7 +21,7 @@
    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
    DEALINGS IN THE SOFTWARE.
 
-   Authour: Doerthous <doerthous@gmail.com>
+   Author: Doerthous <doerthous@gmail.com>
 */
 
 #ifndef DTS_NET_DBLK_H_
@@ -92,6 +92,7 @@ dts_net_dblk_t *dts_net_dblk_new(uint8_t *data, size_t size);
  * 
  * @param size [in] data buffer size.
  * @return dts_net_dblk_t* dblk
+ * TODO: new_with_buff will be more nicer
  */
 dts_net_dblk_t *dts_net_dblk_new_with_data(size_t size);
 

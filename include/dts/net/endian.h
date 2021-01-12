@@ -21,7 +21,7 @@
    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
    DEALINGS IN THE SOFTWARE.
 
-   Authour: Doerthous <doerthous@gmail.com>
+   Author: Doerthous <doerthous@gmail.com>
 */
 
 #ifndef ENDIAN_H_

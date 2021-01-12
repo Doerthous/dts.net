@@ -28,6 +28,7 @@
 #define DTS_NET_ETHER_H_
 
 #include <stdint.h>
+#include <stddef.h>
 #include <dts_net_dblk.h>
 
 #define ETHER_TYPE_ARP  0x0806
@@ -42,7 +43,7 @@ typedef struct
     uint32_t crc;
     //
     uint8_t *data;
-    uint32_t data_size;
+    size_t data_size;
 } dts_net_ether_frame_t;
 
 // there are used by ether module internally.
@@ -51,8 +52,8 @@ int dts_net_ether_unpack(dts_net_ether_frame_t *frame);
 
 typedef struct
 {
-    uint32_t (*send)(void *interface, uint8_t *data, uint32_t size);
-    uint32_t (*recv)(void *interface, uint8_t *data, uint32_t size);
+    size_t (*send)(void *interface, uint8_t *data, size_t size);
+    size_t (*recv)(void *interface, uint8_t *data, size_t size);
     void *interface;
     uint8_t mac_address[6];
 } dts_net_ether_t;

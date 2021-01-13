@@ -42,4 +42,7 @@
 #define mem_alloc_arpti dts_net_mem_alloc_arpti
 #define mem_free_arpti dts_net_mem_free_arpti
 
+#define mem_alloc_ip_datagram dts_net_mem_alloc_ip_datagram
+#define mem_free_ip_datagram dts_net_mem_free_ip_datagram
+
 #endif // MEM_H_

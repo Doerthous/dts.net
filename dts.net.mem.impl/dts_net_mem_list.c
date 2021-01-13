@@ -27,55 +27,34 @@
 #include <dts/net/mem.h>
 #include <dts/datastruct/list.h>
 
+#define MEM_ITEM_LIST_API(type, name, count) \
+ static list_t name##_list; \
+ static type name##s[count]; \
+ type *mem_alloc_##name(void) { \
+     return list_dequeue(&name##_list); \
+ } \
+ void mem_free_##name(type *name) { \
+     list_enqueue(&name##_list, name); \
+ }
+#define MEM_ITEM_LIST_API_INIT(name, count) \
+ for (int i = 0; i < count; ++i) { \
+     list_enqueue(&name##_list, &name##s[i]); \
+ }
+
+
 #include <dts/net/udp.h>
 #include <dts/net/ether_arp.h>
-static list_t udp_list;
-static udp_t udps[DTS_NET_SERVER_UDP_MAX_COUNT];
-static list_t nif_list;
-static nif_t nifs[DTS_NET_NET_IF_MAX_COUNT];
-static list_t arpti_list;
-static ether_arp_ti_t arptis[DTS_NET_ARP_TABLE_MAX_SIZE];
+#include <dts/net/ip.h>
+
+MEM_ITEM_LIST_API(udp_t, udp, DTS_NET_SERVER_UDP_MAX_COUNT)
+MEM_ITEM_LIST_API(nif_t, nif, DTS_NET_NET_IF_MAX_COUNT)
+MEM_ITEM_LIST_API(ether_arp_ti_t, arpti, DTS_NET_ARP_TABLE_MAX_SIZE)
+MEM_ITEM_LIST_API(ip_datagram_t, ip_datagram, DTS_NET_IP_DATAGRAM_MAX_COUNT)
+
 void mem_init(void)
 {
-    for (int i = 0; i < DTS_NET_SERVER_UDP_MAX_COUNT; ++i) {
-        list_enqueue(&udp_list, &udps[i]);
-    }
-
-    for (int i = 0; i < DTS_NET_NET_IF_MAX_COUNT; ++i) {
-        list_enqueue(&nif_list, &nifs[i]);
-    }
-
-    for (int i = 0; i < DTS_NET_ARP_TABLE_MAX_SIZE; ++i) {
-        list_enqueue(&arpti_list, &arptis[i]);
-    }
-}
-
-
-udp_t *dts_net_mem_alloc_udp()
-{
-    return list_dequeue(&udp_list);
-}
-void dts_net_mem_free_udp(udp_t *udp)
-{
-    list_enqueue(&udp_list, udp);
-}
-
-
-nif_t *dts_net_mem_alloc_nif()
-{
-    return list_dequeue(&nif_list);
-}
-void dts_net_mem_free_nif(nif_t *nif)
-{
-    list_enqueue(&nif_list, nif);
-}
-
-
-ether_arp_ti_t *mem_alloc_arpti()
-{
-    return list_dequeue(&arpti_list);
-}
-void mem_free_arpti(ether_arp_ti_t *arpti)
-{
-    list_enqueue(&arpti_list, arpti);
+    MEM_ITEM_LIST_API_INIT(udp, DTS_NET_SERVER_UDP_MAX_COUNT);
+    MEM_ITEM_LIST_API_INIT(nif, DTS_NET_NET_IF_MAX_COUNT);
+    MEM_ITEM_LIST_API_INIT(arpti, DTS_NET_ARP_TABLE_MAX_SIZE);
+    MEM_ITEM_LIST_API_INIT(ip_datagram, DTS_NET_IP_DATAGRAM_MAX_COUNT);
 }

@@ -46,4 +46,8 @@ extern void dts_net_mem_free_nif(dts_net_nif_t *nif);
 extern dts_net_ether_arp_ti_t *dts_net_mem_alloc_arpti(void);
 extern void dts_net_mem_free_arpti(dts_net_ether_arp_ti_t *nif);
 
+#include <dts_net_ip.h>
+extern dts_net_ip_datagram_t *dts_net_mem_alloc_ip_datagram(void);
+extern void dts_net_mem_free_ip_datagram(dts_net_ip_datagram_t *datagram);
+
 #endif // DTS_NET_MEM_H_

@@ -30,5 +30,6 @@
 #define DTS_NET_ARP_TABLE_MAX_SIZE      1
 #define DTS_NET_NET_IF_MAX_COUNT        1
 #define DTS_NET_SERVER_UDP_MAX_COUNT    1
+#define DTS_NET_IP_DATAGRAM_MAX_COUNT   1
 
 #endif // DTS_NET_CONF_H_

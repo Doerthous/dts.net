@@ -31,76 +31,34 @@ void mem_init(void)
 
 }
 
-#include <dts/net/udp.h>
-static struct 
-{
-    udp_t udp;
-    int used;
-} udps[DTS_NET_SERVER_UDP_MAX_COUNT];
-udp_t *dts_net_mem_alloc_udp()
-{
-    for (int i = 0; i < DTS_NET_SERVER_UDP_MAX_COUNT; ++i) {
-        if (!udps[i].used) {
-            udps[i].used = 1;
-            return &udps[i].udp;
-        }
-    }
-	
-	return NULL;
-}
-void dts_net_mem_free_udp(udp_t *udp)
-{
-    for (int i = 0; i < DTS_NET_SERVER_UDP_MAX_COUNT; ++i) {
-        if (&udps[i].udp == udp) {
-            udps[i].used = 0;
-        }
-    }
-}
+#define MEM_ITEM_ARR_API(type, name, count) \
+ static struct { \
+    type name; \
+    int used; \
+ } name##s[count]; \
+ type *mem_alloc_##name() { \
+    for (int i = 0; i < count; ++i) { \
+        if (!name##s[i].used) { \
+            name##s[i].used = 1; \
+            return &name##s[i].name; \
+        } \
+    } \
+    return NULL; \
+ } \
+ void mem_free_##name(type *name) { \
+    for (int i = 0; i < count; ++i) { \
+        if (&name##s[i].name == name) { \
+            name##s[i].used = 0; \
+        } \
+    } \
+ }
 
+#include <dts/net/udp.h>
+MEM_ITEM_ARR_API(udp_t, udp, DTS_NET_SERVER_UDP_MAX_COUNT)
 
 #include <dts/net/ether_arp.h>
-static struct { nif_t nif; int used; } nifs[DTS_NET_NET_IF_MAX_COUNT];
-nif_t *dts_net_mem_alloc_nif()
-{
-    for (int i = 0; i < DTS_NET_NET_IF_MAX_COUNT; ++i) {
-        if (!nifs[i].used) {
-            nifs[i].used = 1;
-            return &nifs[i].nif;
-        }
-    }
-	
-	return NULL;
-}
-void dts_net_mem_free_nif(nif_t *nif)
-{
-    for (int i = 0; i < DTS_NET_NET_IF_MAX_COUNT; ++i) {
-        if (&nifs[i].nif == nif) {
-            nifs[i].used = 0;
-        }
-    }
-}
+MEM_ITEM_ARR_API(nif_t, nif, DTS_NET_NET_IF_MAX_COUNT)
+MEM_ITEM_ARR_API(ether_arp_ti_t, arpti, DTS_NET_ARP_TABLE_MAX_SIZE)
 
-static struct 
-{
-    ether_arp_ti_t arpti;
-    int used;
-} arptis[DTS_NET_ARP_TABLE_MAX_SIZE];
-ether_arp_ti_t *mem_alloc_arpti()
-{
-    for (int i = 0; i < DTS_NET_ARP_TABLE_MAX_SIZE; ++i) {
-        if (!arptis[i].used) {
-            arptis[i].used = 1;
-            return &arptis[i].arpti;
-        }
-    }
-	
-	return NULL;
-}
-void mem_free_arpti(ether_arp_ti_t *arpti)
-{
-    for (int i = 0; i < DTS_NET_ARP_TABLE_MAX_SIZE; ++i) {
-        if (&arptis[i].arpti == arpti) {
-            arptis[i].used = 0;
-        }
-    }
-}
+#include <dts/net/ip.h>
+MEM_ITEM_ARR_API(ip_datagram_t, ip_datagram, DTS_NET_IP_DATAGRAM_MAX_COUNT)

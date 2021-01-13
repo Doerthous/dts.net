@@ -77,6 +77,8 @@ typedef struct
 
 typedef struct
 {
+    void *next; // list
+
     dts_net_ip_header_t header;
     dts_net_dblk_t *payload;
     dts_net_dblk_t *raw_data;

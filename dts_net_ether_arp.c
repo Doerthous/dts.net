@@ -48,9 +48,15 @@ static int ip_ether_send(ether_t *eth, ip_datagram_t *datagram)
     }
     frame.data_size = 2048;
     
-    while (frame.payload) {
-        ether_hl_send(eth, &frame);
-        frame.payload = dblk_delete(frame.payload);
+    int retry = 3;
+    while (frame.payload && retry) {
+        if (ether_hl_send(eth, &frame)) {
+            frame.payload = dblk_delete(frame.payload);
+            retry = 3;
+        }
+        else {
+            --retry;
+        }
     }
 
     free(frame.data);
@@ -124,6 +130,7 @@ void ether_arp_ether_recv(ether_t *ether, arp_packet_t *pkt)
                 else {
                     // TODO: delete the shortest one
                     //mem_free_arpti(arpti);
+					break;
                 }
             }
             return;

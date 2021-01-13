@@ -27,39 +27,60 @@
 #include <dts/net/dblk.h>
 #include <dts/net/mem.h>
 
+// node
+static size_t dblk_node_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
+{
+    size_t do_size;
+    if (dblk->vsize == 0) {
+        do_size = size > dblk->size ? dblk->size : size;
+        memcpy(mem, dblk->data, do_size);
+    }
+    else {
+        do_size = size > dblk->vsize ? dblk->vsize : size;
+        if (dblk->vsize > dblk->size) {
+            size_t remain_size = dblk->vsize-dblk->size;
+            memcpy(mem, dblk->data, dblk->size);
+            mem = ((uint8_t *)mem) + dblk->size;
+            dts_net_dblk_t *vmem = dblk->vmem;
+            while (remain_size && vmem) {
+                if (remain_size > vmem->size) {
+                    memcpy(mem, vmem->data, vmem->size);
+                    mem = ((uint8_t *)mem) + vmem->size;
+                    remain_size -= vmem->size;
+                }
+                else {
+                    memcpy(mem, vmem->data, remain_size);
+                    mem = ((uint8_t *)mem) + remain_size;
+                    break;
+                }
+                vmem = vmem->next;
+            }
+        }
+        else {
+            memcpy(mem, dblk->data, dblk->vsize);
+        }
+    }
+    return do_size;
+}
+
 dblk_t *dblk_init(dblk_t *dblk, uint8_t *data, uint16_t size)
 {
     if (dblk) {
-        dblk->next = (void *)0;
-		dblk->data = data;
+        dblk->next = NULL;
+        dblk->data = data;
         dblk->data_malloc = dblk->node_malloc = dblk->more = 0;
         dblk->size = size;
+        dblk->vsize = 0;
+        dblk->vmem = NULL;
     }
     return dblk;
 }
-
-size_t dblk_size(dblk_t *dblk)
-{
-    size_t size = 0;
-
-    while (dblk) {
-        size += dblk->size;
-        if (!dblk->more) {
-            break;
-        }
-        dblk = dblk->next;
-    }
-
-    return size;
-}
-
 
 dblk_t *dblk_new(uint8_t *data, size_t size)
 {
     dblk_t *dblk;
 
-    dblk = malloc(sizeof(dblk_t));
-    dblk = dblk_init(dblk, data, size);
+    dblk = dblk_init(malloc(sizeof(dblk_t)), data, size);
     if (dblk) {
         dblk->node_malloc = 1;
     }
@@ -69,19 +90,17 @@ dblk_t *dblk_new(uint8_t *data, size_t size)
 
 dblk_t *dblk_new_with_data(size_t size)
 {
-    dblk_t *dblk;
+    dblk_t *dblk = NULL;
+    uint8_t *data;
 
-    dblk = malloc(sizeof(dblk_t));
-    dblk = dblk_init(dblk, 0, 0);
-    if (dblk) {
-        dblk->node_malloc = 1;
-        dblk->data = malloc(size);
-        if (dblk->data) {
+    data = malloc(size);
+    if (data) {
+        dblk = dblk_new(data, size);
+        if (dblk) {
             dblk->data_malloc = 1;
-            dblk->size = size;
         }
         else {
-            free(dblk);
+            free(data);
             dblk = NULL;
         }
     }
@@ -89,6 +108,7 @@ dblk_t *dblk_new_with_data(size_t size)
     return dblk;
 }
 
+// list
 void dblk_delete_all(dblk_t * dblk)
 {
     while (dblk) {
@@ -96,6 +116,7 @@ void dblk_delete_all(dblk_t * dblk)
     }
 }
 
+// block
 dblk_t *dblk_delete(dblk_t * dblk)
 {
     dblk_t *p;
@@ -111,10 +132,136 @@ dblk_t *dblk_delete(dblk_t * dblk)
         if (p->node_malloc) {
             free(p);
         }
-		if (!more) {
+        if (!more) {
             break;
         }
     }
 
     return dblk;
+}
+
+size_t dblk_size(const dblk_t *dblk)
+{
+    size_t size = 0;
+
+    while (dblk) {
+        if (dblk->vsize == 0) {
+            size += dblk->size;
+        }
+        else {
+            size += dblk->vsize;
+        }
+        if (!dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+
+    return size;
+}
+
+dblk_t *dblk_next(dblk_t * dblk)
+{
+    while (dblk) {
+        if (!dblk->more) {
+            return dblk->next;
+        }
+        dblk = dblk->next;
+    }
+    
+    return dblk;
+}
+
+size_t dblk_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
+{
+    size_t total = size;
+    size_t do_size;
+
+    while (dblk) {
+        do_size = dblk_node_copy_to(dblk, mem, size);
+        size -= do_size;
+        mem = ((uint8_t *)mem) + do_size;
+        if (size == 0 || !dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+
+    return total-size;
+}
+
+size_t dblk_copy_from(dts_net_dblk_t *dblk, void *mem, size_t size)
+{
+    size_t total = size;
+    size_t do_size;
+
+    while (dblk) {
+        do_size = size > dblk->size ? dblk->size : size;
+        memcpy(dblk->data, mem, do_size);
+        size -= do_size;
+        mem = ((uint8_t *)mem) + do_size;
+        if (size == 0 || !dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+
+    return total-size;
+}
+
+dblk_t *dblk_fragment(const dblk_t *dblk, size_t fsize)
+{
+    size_t lgb_size;
+    size_t fg_cnt;
+    dblk_t *hdr, *f, *e;
+
+    if (!dblk || dblk->size == 0) {
+        return NULL;
+    }
+
+    lgb_size = dblk_size(dblk);
+    fg_cnt = lgb_size/fsize+(lgb_size%fsize>0);
+
+    e = hdr = dblk_new(NULL, 0);
+    for (int i = 1; i < fg_cnt; ++i) {
+        f = dblk_new(NULL, 0);
+        e->next = f;
+        e = f;
+    }
+
+    e = hdr;
+    size_t offset = 0;
+    while (e && dblk) {
+        e->data = dblk->data + offset;
+        e->size = dblk->size - offset;
+        e->vsize = fsize;
+        if (dblk->size > offset+fsize) {
+            offset += fsize;
+            e = e->next;
+            continue;
+        }
+        if (dblk->size < offset+fsize) {
+            size_t remain_size = offset+fsize - dblk->size;
+            f = e->vmem = dblk->next;
+            while (f && f->size < remain_size) {
+                remain_size -= f->size;
+                if (!f->more) {
+                    break;
+                }
+                f = f->next;
+            }
+            if (!f) {
+                e->vsize -= remain_size;
+            }
+            offset = remain_size;
+            dblk = f;
+            e = e->next;
+            continue;
+        }
+        offset = 0;
+        dblk = dblk->next;
+        e = e->next;
+    }
+
+    return hdr;
 }

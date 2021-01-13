@@ -51,19 +51,9 @@ int ether_pack(ether_frame_t *frame)
     }
 
 
-	dts_net_dblk_t *db = frame->payload;
-	while (db) {
-		memcpy(ptr, db->data, db->size);
-		ptr += db->size;
-		if (!db->more) {
-			break;
-		}
-		db = db->next;
-	}
+	frame->data_size = dblk_copy_to(frame->payload, frame->data+14, frame->data_size-14)+14;
 
     // TODO: if !auto_crc, then fill crc
-
-    frame->data_size = ptr-frame->data;
     return 1;
 }
 

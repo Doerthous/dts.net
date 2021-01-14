@@ -34,6 +34,20 @@
 #define IP_PROTOCOL_TCP     6
 #define IP_PROTOCOL_UDP     17
 
+
+typedef struct
+{
+    uint8_t version;
+    union {
+        uint8_t v4[4];
+        uint8_t v6[1];
+    } addr;
+    union {
+        uint8_t v4[4];
+        uint8_t v6[1];
+    } netmask;
+} dts_net_ip_addr_t;
+
 #define IP_MKFLAGS(hdr, DF, MF) (hdr)->flags = (((DF)<<1)|(MF))
 
 #define IP_TOS_P_NETWORK_CONTROL        0b111
@@ -68,10 +82,11 @@ typedef struct
     uint8_t time_to_live;
     uint8_t protocol;
     uint16_t checksum;
-    uint8_t *source_address;
-    uint8_t *destination_address;
+    dts_net_ip_addr_t src;
+    dts_net_ip_addr_t dest;
     uint8_t *options;
     uint8_t option_size;
+
     // Padding
 } dts_net_ip_header_t;
 
@@ -85,18 +100,7 @@ typedef struct
 } dts_net_ip_datagram_t;
 
 
-typedef struct
-{
-    uint8_t version;
-    union {
-        uint8_t v4[4];
-        uint8_t v6[1];
-    } addr;
-    union {
-        uint8_t v4[4];
-        uint8_t v6[1];
-    } netmask;
-} dts_net_ip_addr_t;
+
 
 #define DTS_NET_IPv4_ADDR_DEF(name, a1,a2,a3,a4) \
 dts_net_ip_addr_t name = { .version = 4, .addr.v4 = {a1,a2,a3,a4}, };

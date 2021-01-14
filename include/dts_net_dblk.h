@@ -1,4 +1,4 @@
-﻿/*
+/*
    The MIT License (MIT)
 
    Copyright (c) 2020 Doerthous
@@ -81,9 +81,28 @@ dts_net_dblk_t *dts_net_dblk_node_init(dts_net_dblk_t *dblk,
  * @param _data [in] uint8_t *, data buffer.
  * @param _size [in] size_t, size of data buffer.
  */
+void dts_net_dblk_node_new_from_stack(dts_net_dblk_t **ppdblk, 
+    uint8_t *data, size_t size);
+#define DTS_NET_DBLK_CONCAT_(x,y) x##y
+#define DTS_NET_DBLK_CONCAT(x,y) DTS_NET_DBLK_CONCAT_(x,y)
 #define dts_net_dblk_node_new_from_stack(ppdblk, _data, _size) \
-    dts_net_dblk_t dblk##__LINE__; \
-    *(ppdblk) = dts_net_dblk_node_init(&dblk##__LINE__, _data, _size)
+    dts_net_dblk_t DTS_NET_DBLK_CONCAT(dblk,__LINE__); \
+    *(ppdblk) = dts_net_dblk_node_init(&DTS_NET_DBLK_CONCAT(dblk,__LINE__), \
+        _data, _size)
+
+/**
+ * @brief New a Node from stack with buffer.
+ *
+ * @param ppdblk [in] dblk_t **, a pointer passed from outside.
+ * @param _size [in] size_t, size of data buffer.
+ */
+void dts_net_dblk_node_new_from_stack_with_buff(dts_net_dblk_t **ppdblk,
+    size_t size);
+#define dts_net_dblk_node_new_from_stack_with_buff(ppdblk, _size) \
+    dts_net_dblk_t DTS_NET_DBLK_CONCAT(dblk,__LINE__); \
+    uint8_t DTS_NET_DBLK_CONCAT(dblk_buf, __LINE__)[_size]; \
+    *(ppdblk) = dts_net_dblk_node_init(&DTS_NET_DBLK_CONCAT(dblk,__LINE__), \
+        DTS_NET_DBLK_CONCAT(dblk_buf,__LINE__), _size)
 
 /**
  * @brief This new only new the dblk Node, the real data buffer is passed from

@@ -32,82 +32,56 @@
 
 #include <string.h>
 
-uint32_t udp_pack(udp_datagram_t *dg)
-{
-    uint8_t *ptr = dg->raw_data;
-
-    dg->length = 8+dg->data_size;
-
-    ptr = bw16(dg->src_port, ptr);
-    ptr = bw16(dg->dest_port, ptr);
-    ptr = bw16(dg->length, ptr);
-    ptr = bw16(0, ptr);
-    memcpy(ptr, dg->data, dg->data_size); ptr+=dg->data_size;
-    dg->raw_data_size = (ptr-dg->raw_data);
-
-    uint64_t sum = 0;
-    pseudo_header_set_length(dg->pseudo_header, dg->length);
-    sum = checksum_accmulate(sum, 
-        dg->pseudo_header, dg->pseudo_header_size);
-    sum = checksum_accmulate(sum, 
-        dg->raw_data, dg->raw_data_size);
-    dg->checksum = checksum_complete(sum);
-
-    bw16(dg->checksum, dg->raw_data+6);
-
-    return dg->raw_data_size;
-}
-
 
 int udp_unpack(udp_datagram_t *dg)
 {
-    if (dg->raw_data_size < 8) {
+    if (dg->raw_data->size < 8) {
         return 0;
     }
 
-    dg->src_port = br16(dg->raw_data);
-    dg->dest_port = br16(dg->raw_data+2);
-    dg->length = br16(dg->raw_data+4);
-    dg->checksum = br16(dg->raw_data+6);
-    dg->data = dg->raw_data+8;
-    dg->data_size = dg->length-8;
+    dg->src_port = br16(dg->raw_data->data);
+    dg->dest_port = br16(dg->raw_data->data+2);
+    dg->psdhdr->length = dg->length = br16(dg->raw_data->data+4);
+    dg->checksum = br16(dg->raw_data->data+6);
+    dg->payload->data = dg->raw_data->data+8;
+    dg->payload->size = dg->length-8;
 
-    bw16(0, dg->raw_data+6); // clear checksum
+    bw16(0, dg->raw_data->data+6); // clear checksum
+
+    pseudo_header_pack(dg->psdhdr);
 
     uint64_t sum = 0;
-    pseudo_header_set_length(dg->pseudo_header, dg->length);
-    sum = checksum_accmulate(sum, 
-        dg->pseudo_header, dg->pseudo_header_size);
-    sum = checksum_accmulate(sum, 
-        dg->raw_data, dg->raw_data_size);
-
+    sum = checksum_accmulate(sum, dg->psdhdr->data, dg->psdhdr->data_size);
+    sum = checksum_accmulate(sum, dg->raw_data->data, dg->raw_data->size);
     return dg->checksum == checksum_complete(sum);
 }
 
-#include <dts/net/dblk.h>
-static uint32_t udp_pack_ext(udp_datagram_t *dg)
+size_t udp_pack(udp_datagram_t *dg)
 {
-    uint8_t *header = dg->raw_data_ext->data;
-    uint16_t header_size = dg->raw_data_ext->size;
-    uint8_t *payload = dg->raw_data_ext->next->data;
-    uint16_t payload_size = dg->raw_data_ext->next->size;
+    dblk_t *header = dg->raw_data;
+    //uint8_t *payload = dg->raw_data->next->data;
+   // uint16_t payload_size = dg->raw_data->next->size;
 
-    dg->length = header_size+payload_size;
+    dg->psdhdr->length = dg->length = header->size+dg->payload->size;
 
-    header = bw16(dg->src_port, header);
-    header = bw16(dg->dest_port, header);
-    header = bw16(dg->length, header);
-    header = bw16(0, header);
+    // do header
+    bw16(dg->src_port, header->data);
+    bw16(dg->dest_port, header->data+2);
+    bw16(dg->length, header->data+4);
+    bw16(0, header->data+6); // clear checksum
 
+    // do pseudo header
+    pseudo_header_pack(dg->psdhdr);
+
+    // do checksume
     uint64_t sum = 0;
-    pseudo_header_set_length(dg->pseudo_header, dg->length);
-    sum = checksum_accmulate(sum, 
-        dg->pseudo_header, dg->pseudo_header_size);
-    sum = checksum_accmulate(sum, header, header_size);
-    sum = checksum_accmulate(sum, payload, payload_size);
+    sum = checksum_accmulate(sum, dg->psdhdr->data, dg->psdhdr->data_size);
+    sum = checksum_accmulate(sum, header->data, header->size);
+    sum = checksum_accmulate(sum, dg->payload->data, dg->payload->size);
     dg->checksum = checksum_complete(sum);
+    bw16(dg->checksum, header->data+6); // checksum
 
-    bw16(dg->checksum, header+6);
+    dblk_node_concat(header, dg->payload);
 
     return dg->length;
 }
@@ -155,21 +129,22 @@ udp_t *udp_bind(ip_t *ip, int port, udp_recv_t cbk,void *cbkd)
 int udp_ip_recv(ip_t *ip, ip_datagram_t *ip_datagram)
 {
     udp_datagram_t datagram;
-    datagram.raw_data = ip_datagram->payload->data;
-    datagram.raw_data_size = ip_datagram->payload->size;
+    datagram.raw_data = ip_datagram->payload;
 
+	dblk_node_new_from_stack(&datagram.payload, NULL, 0);
+	
     int ret;
     { 
-        uint8_t phdr[12];
-        pseudo_header_construct(&ip_datagram->header, phdr, 12);
-        datagram.pseudo_header = phdr;
-        datagram.pseudo_header_size = 12;
+        pseudo_header_new_from_stack(&datagram.psdhdr, 
+            &ip_datagram->header.src, &ip_datagram->header.dest, 
+            ip_datagram->header.protocol, 0);
         ret = udp_unpack(&datagram);
     }
     if (ret) {
         udp_t *udp = find_udp_by_addr(ip, datagram.dest_port);
         if (udp && udp->callback) {
-            udp->callback(udp->cb_data, datagram.data, datagram.data_size);
+            udp->callback(udp->cb_data, 
+                datagram.payload->data, datagram.payload->size);
         }
     }
 
@@ -177,54 +152,46 @@ int udp_ip_recv(ip_t *ip, ip_datagram_t *ip_datagram)
 }
 
 
-static int _sendto(ip_t *ip, ip_addr_t *dist, 
+static int _sendto(ip_t *ip, ip_addr_t *dest, 
     uint16_t port, uint8_t *data, uint16_t size)
 {
     ip_datagram_t ip_datagram;
-    udp_datagram_t datagram;
 
     ip_datagram.header.options = NULL;
     ip_datagram.header.option_size = 0;
     IP_MKTOS(&ip_datagram.header, 0, 0, 0, 0);
     ip_datagram.header.protocol = IP_PROTOCOL_UDP;
     ip_datagram.header.time_to_live = 128;
-    ip_datagram.header.source_address = ip->addr.addr.v4;
-    ip_datagram.header.destination_address = dist->addr.v4;
+    ip_datagram.header.src = ip->addr;
+    ip_datagram.header.dest = *dest;
     
-    uint8_t udp_header[8];
-	dblk_node_new_from_stack(&ip_datagram.payload, udp_header, 8);
-    dblk_t udp_payload_dblk = DATA_BLOCK(data, size);
-    ip_datagram.payload->next = &udp_payload_dblk;
-    ip_datagram.payload->more = 1;
 
+    udp_datagram_t udp_datagram;
     #define udp_random_port() 12435
-    datagram.src_port = udp_random_port();
-    datagram.dest_port = port;
-    datagram.data = data;
-    datagram.data_size = size;
-    datagram.raw_data_ext = ip_datagram.payload;
-
+    udp_datagram.src_port = udp_random_port();
+    udp_datagram.dest_port = port;
+	dblk_node_new_from_stack_with_buff(&udp_datagram.raw_data, 8);
+	dblk_node_new_from_stack(&udp_datagram.payload, data, size);
     {
-        uint8_t pseudo_header[12];
-        pseudo_header_construct(&ip_datagram.header, 
-            pseudo_header, 12);
-        datagram.pseudo_header = pseudo_header;
-        datagram.pseudo_header_size = 12;
-        udp_pack_ext(&datagram);
+        pseudo_header_new_from_stack(&udp_datagram.psdhdr, 
+            &ip->addr, dest, IP_PROTOCOL_UDP, 0);
+        udp_pack(&udp_datagram);
     }
+
+    ip_datagram.payload = udp_datagram.raw_data;
 
     return ip_hl_send(ip, &ip_datagram);
 }
 
-int udp_sendto(ip_addr_t *dist, uint16_t port, uint8_t *data, uint16_t size)
+int udp_sendto(ip_addr_t *dest, uint16_t port, uint8_t *data, uint16_t size)
 {
-    if (dist->version != 4) {
+    if (dest->version != 4) {
         return 0;
     }
     
-    ip_t *ip = ip_find_netif(dist);
+    ip_t *ip = ip_find_netif(dest);
     if (ip) {
-        return _sendto(ip, dist, port, data, size);
+        return _sendto(ip, dest, port, data, size);
     }
 
     return 0;

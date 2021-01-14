@@ -29,25 +29,22 @@
 
 #include <stdint.h>
 #include <dts_net_dblk.h>
+#include <dts_net_pseudo_header.h>
 
 typedef struct 
 {
+    dts_net_pseudo_header_t *psdhdr;
+
     uint16_t src_port;
     uint16_t dest_port;
     uint16_t length;
     uint16_t checksum;
-    uint8_t *data;
-    uint32_t data_size;
+    dts_net_dblk_t *payload;
 
-    uint8_t *raw_data;
-    uint32_t raw_data_size;
-    dts_net_dblk_t *raw_data_ext;
-
-    uint8_t *pseudo_header;
-    uint32_t pseudo_header_size;
+    dts_net_dblk_t *raw_data;
 } dts_net_udp_datagram_t;
 
-uint32_t dts_net_udp_pack(dts_net_udp_datagram_t *dg);
+size_t dts_net_udp_pack(dts_net_udp_datagram_t *dg);
 int dts_net_udp_unpack(dts_net_udp_datagram_t *dg);
 
 

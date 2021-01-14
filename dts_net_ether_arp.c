@@ -36,7 +36,7 @@ static int ip_ether_send(ether_t *eth, ip_datagram_t *datagram)
     ether_frame_t frame;
 
     frame.dest_mac_addr = ether_arp_get_mac_address(eth,
-		datagram->header.destination_address);
+		datagram->header.dest.addr.v4);
     if (!frame.dest_mac_addr) {
         return 0;
     }

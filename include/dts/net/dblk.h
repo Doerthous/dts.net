@@ -45,6 +45,7 @@
 
 #define dblk_node_init dts_net_dblk_node_init
 #define dblk_node_new_from_stack dts_net_dblk_node_new_from_stack
+#define dblk_node_new_from_stack_with_buff dts_net_dblk_node_new_from_stack_with_buff
 #define dblk_node_new dts_net_dblk_node_new
 #define dblk_node_new_with_buff dts_net_dblk_node_new_with_buff
 #define dblk_node_size dts_net_dblk_node_size

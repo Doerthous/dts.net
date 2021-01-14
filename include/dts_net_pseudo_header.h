@@ -1,7 +1,7 @@
 /*
    The MIT License (MIT)
 
-   Copyright (c) 2020 Doerthous
+   Copyright (c) 2021 Doerthous
 
    Permission is hereby granted, free of charge, to any person obtaining a
    copy of this software and associated documentation files (the "Software"),
@@ -21,43 +21,24 @@
    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
    DEALINGS IN THE SOFTWARE.
 
-   Author: Doerthous <doerthous@gmail.com>
+   Authour: Doerthous <doerthous@gmail.com>
 */
 
-#ifndef PSEUDO_HEADER_H_
-#define PSEUDO_HEADER_H_
+#ifndef DTS_NET_PSEUDO_HEADER_H_
+#define DTS_NET_PSEUDO_HEADER_H_
 
-#include <dts_net_pseudo_header.h>
 #include <dts_net_ip.h>
-#include <dts/net/endian.h>
-#include <string.h>
+#include <stddef.h>
 
-#define pseudo_header_t dts_net_pseudo_header_t
-
-static inline size_t pseudo_header_pack(pseudo_header_t *ph)
+typedef struct 
 {
-    if (ph->data_size < 12) {
-        return 0;
-    }
+    dts_net_ip_addr_t *src;
+    dts_net_ip_addr_t *dest;
+    uint8_t protocol;
+    uint16_t length;
 
-    memcpy(ph->data, ph->src->addr.v4, 4);
-    memcpy(ph->data+4, ph->dest->addr.v6, 4);
-    ph->data[8] = 0;
-    ph->data[9] = ph->protocol;
-    bw16(ph->length, ph->data+10);
-    
-    return 12;
-}
+    uint8_t *data;
+    uint32_t data_size;
+} dts_net_pseudo_header_t;
 
-#define PSEUDO_HEADER_CONCAT_(x,y) x##y
-#define PSEUDO_HEADER_CONCAT(x,y) PSEUDO_HEADER_CONCAT_(x,y)
-#define pseudo_header_new_from_stack(ppphdr, _src, _dest, _proto, _len) \
-    uint8_t PSEUDO_HEADER_CONCAT(phdr_buf, __LINE__)[12]; \
-    pseudo_header_t PSEUDO_HEADER_CONCAT(phdr, __LINE__) = { \
-        .src = _src, .dest = _dest, .protocol = _proto, .length = _len, \
-        .data = PSEUDO_HEADER_CONCAT(phdr_buf, __LINE__), .data_size = 12, \
-    }; \
-    *(ppphdr) = &PSEUDO_HEADER_CONCAT(phdr, __LINE__);
-
-
-#endif // PSEUDO_HEADER_H_
+#endif // DTS_NET_PSEUDO_HEADER_H_

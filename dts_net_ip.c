@@ -31,7 +31,7 @@
 
 #include <string.h>
 
-static inline size_t ip_pack(ip_header_t *hdr, uint8_t *data, size_t size)
+static inline size_t ip_header_pack(ip_header_t *hdr, uint8_t *data, size_t size)
 {
     uint8_t *ptr = data;
 
@@ -61,8 +61,12 @@ static inline size_t ip_pack(ip_header_t *hdr, uint8_t *data, size_t size)
     *data++ = hdr->time_to_live;
     *data++ = hdr->protocol;
     bw16(hdr->checksum, data); data += 2;
-    memcpy(data, hdr->source_address, 4); data += 4;
-    memcpy(data, hdr->destination_address, 4); data += 4;
+    // memcpy(data, hdr->source_address, 4); data += 4;
+    // memcpy(data, hdr->destination_address, 4); data += 4;
+    if (hdr->version == 4) {
+        memcpy(data, hdr->src.addr.v4, 4); data += 4;
+        memcpy(data, hdr->dest.addr.v4, 4); data += 4;
+    }
     memcpy(data, hdr->options, hdr->option_size);
 
     // compute crc
@@ -72,7 +76,7 @@ static inline size_t ip_pack(ip_header_t *hdr, uint8_t *data, size_t size)
     return size;
 }
 
-static inline int ip_unpack(ip_datagram_t *datagram)
+static inline int ip_header_unpack(ip_datagram_t *datagram)
 {
     ip_header_t *hdr = &datagram->header;
     uint8_t *data = datagram->raw_data->data;
@@ -96,8 +100,12 @@ static inline int ip_unpack(ip_datagram_t *datagram)
     hdr->time_to_live = data[8];
     hdr->protocol = data[9];
     hdr->checksum = br16(data+10);
-    hdr->source_address = data+12;
-    hdr->destination_address = data+16;
+
+    hdr->src.version = hdr->dest.version = hdr->version;
+    if (hdr->version == 4) {
+        *((uint32_t *)hdr->src.addr.v4) = *((uint32_t *)(data+12));
+        *((uint32_t *)hdr->dest.addr.v4) = *((uint32_t *)(data+16));
+    }
 
     // TODO: do options
     if (size == 20) {
@@ -105,21 +113,18 @@ static inline int ip_unpack(ip_datagram_t *datagram)
         hdr->option_size = 0;
     }
 
-    datagram->payload->data = data+(hdr->ihl*4);
-    datagram->payload->size = size-(hdr->ihl*4);
-
     return 1;
 }
 
 int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
 {
     static int ident;
-    uint8_t header_buff[64];
-    dblk_t ip_header = DATA_BLOCK(header_buff, 64);
     size_t payload_size = dblk_size(datagram->payload);
 
+    dblk_node_new_from_stack_with_buff(&datagram->raw_data, 64);
+
     datagram->header.version = ip->addr.version;
-    datagram->header.source_address = ip->addr.addr.v4;
+    datagram->header.src = ip->addr;
     datagram->header.identification = ++ident;
 
     #define MKFLAGS(DF, MF) (((DF)<<1)|(MF))
@@ -131,40 +136,36 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
         datagram->header.fragment_offset = 0;
 
         // pack ip header
-        ip_header.size = ip_pack(&datagram->header,
-            ip_header.data, ip_header.size);
+        datagram->raw_data->size = ip_header_pack(&datagram->header,
+            datagram->raw_data->data, datagram->raw_data->size);
 
-        dblk_node_concat(&ip_header, datagram->payload);
-        datagram->raw_data = &ip_header;
+        dblk_node_concat(datagram->raw_data, datagram->payload);
         
         return ip->ll_send(ip->ll, datagram);
     }
     else {
         dblk_t *pl_fgm_curr = dblk_fragment(datagram->payload, 1400);
         dblk_t *pl_fgm_next = dblk_next(pl_fgm_curr);
-        ip_datagram_t fragment = *datagram;
-        fragment.header.fragment_offset = 0;
+        datagram->header.fragment_offset = 0;
         while (pl_fgm_curr) {
-
             // do header
-            fragment.header.total_length = dblk_size(pl_fgm_curr);
-            fragment.header.flags = MKFLAGS(0, (pl_fgm_next!=NULL));
-            ip_header.size = ip_pack(&fragment.header,
-                ip_header.data, ip_header.size);
+            datagram->header.total_length = dblk_size(pl_fgm_curr);
+            datagram->header.flags = MKFLAGS(0, (pl_fgm_next!=NULL));
+            datagram->raw_data->size = ip_header_pack(&datagram->header,
+                datagram->raw_data->data, datagram->raw_data->size);
 
             // concat header and payload_fragments
             pl_fgm_curr->next = NULL; // TODO: disconnect, because ether module will send all dblk
-            dblk_node_concat(&ip_header, pl_fgm_curr);
-            fragment.raw_data = &ip_header;
+            dblk_node_concat(datagram->raw_data, pl_fgm_curr);
 
             // send one fragment
-            if (!ip->ll_send(ip->ll, &fragment)) {
+            if (!ip->ll_send(ip->ll, datagram)) {
                 dblk_list_delete(pl_fgm_curr);
                 return 0;
             }
 
             // update header
-            fragment.header.fragment_offset += fragment.header.total_length/8;
+            datagram->header.fragment_offset += datagram->header.total_length/8;
             pl_fgm_curr = pl_fgm_next;
             pl_fgm_next = dblk_next(pl_fgm_next);
         }
@@ -178,7 +179,11 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
 void ip_ll_recv(ip_t *ip, ip_datagram_t *datagram)
 {
     dblk_node_new_from_stack(&datagram->payload, NULL, 0);
-    if (ip_unpack(datagram)) {
+    if (ip_header_unpack(datagram)) {
+        int hdr_sz = (datagram->header.ihl*4);
+        datagram->payload->data = datagram->raw_data->data+hdr_sz;
+        datagram->payload->size = datagram->raw_data->size-hdr_sz;
+        
         // do fragment
         switch (datagram->header.protocol) {
             case IP_PROTOCOL_ICMP:

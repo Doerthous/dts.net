@@ -105,8 +105,8 @@ void icmp_ip_recv(ip_t *ip, ip_datagram_t *ip_datagram)
     datagram.data = ip_datagram->payload->data;
     datagram.data_size = ip_datagram->payload->size;
     if (icmp_unpack(&datagram)) {
-        ip_datagram->header.destination_address = ip_datagram->header.source_address;
-        ip_datagram->header.source_address = ip->addr.addr.v4;
+        ip_datagram->header.dest = ip_datagram->header.src;
+        ip_datagram->header.src = ip->addr;
 
         switch (datagram.type) {
             case ICMP_TYPE_ECHO: {                

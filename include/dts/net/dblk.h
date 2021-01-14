@@ -29,11 +29,6 @@
 
 #include <dts_net_dblk.h>
 
-#define dblk_t dts_net_dblk_t
-#define dblk_init dts_net_dblk_init
-#define dblk_size dts_net_dblk_size
-#define dblk_next dts_net_dblk_next
-
 #define DATA_BLOCK(_data, _size) \
 { \
     .next = (void *)0, \
@@ -46,17 +41,30 @@
     .vmem = (void *)0, \
 }
 
-#define dblk_new dts_net_dblk_new
-#define dblk_new_with_data dts_net_dblk_new_with_data
-#define dblk_new_from_stack dts_net_dblk_new_from_stack
+#define dblk_t dts_net_dblk_t
+
+#define dblk_node_init dts_net_dblk_node_init
+#define dblk_node_new_from_stack dts_net_dblk_node_new_from_stack
+#define dblk_node_new dts_net_dblk_node_new
+#define dblk_node_new_with_buff dts_net_dblk_node_new_with_buff
+#define dblk_node_size dts_net_dblk_node_size
+#define dblk_node_next dts_net_dblk_node_next
+#define dblk_node_concat dts_net_dblk_node_concat
+#define dblk_node_is_vmem_node dts_net_dblk_node_is_vmem_node
+#define dblk_node_to_rmem_node dts_net_dblk_node_to_rmem_node
+
+#define dblk_list_delete dts_net_dblk_list_delete
+#define dblk_list_has_vmem_node dts_net_dblk_list_has_vmem_node
+#define dblk_list_to_rmem_list dst_net_dblk_list_to_rmem_list
+
 #define dblk_delete dts_net_dblk_delete
-#define dblk_delete_all dts_net_dblk_delete_all
-
-#define dblk_concat dts_net_dblk_concat
-
+#define dblk_size dts_net_dblk_size
+#define dblk_next dts_net_dblk_next
 #define dblk_copy_to dts_net_dblk_copy_to
 #define dblk_copy_from dts_net_dblk_copy_from
-
 #define dblk_fragment dts_net_dblk_fragment
+
+
+
 
 #endif // DBLK_H_

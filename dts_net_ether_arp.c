@@ -152,7 +152,7 @@ void ether_arp_ether_recv(ether_t *ether, arp_packet_t *pkt)
 					
                     uint8_t ether_frm_data[64];
                     ether_frame_t frame;
-                    dblk_new_from_stack(&frame.payload,
+                    dblk_node_new_from_stack(&frame.payload,
                         pkt->data, arp_pack(pkt));
                     frame.dest_mac_addr = pkt->tha;
                     frame.type = ETHER_TYPE_ARP;

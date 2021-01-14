@@ -27,8 +27,8 @@
 #include <dts/net/dblk.h>
 #include <dts/net/mem.h>
 
-// node
-static size_t dblk_node_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
+// Node
+static size_t dblk_node_copy_to(dblk_t *dblk, void *mem, size_t size)
 {
     size_t do_size;
     if (dblk->vsize == 0) {
@@ -41,7 +41,7 @@ static size_t dblk_node_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
             size_t remain_size = dblk->vsize-dblk->size;
             memcpy(mem, dblk->data, dblk->size);
             mem = ((uint8_t *)mem) + dblk->size;
-            dts_net_dblk_t *vmem = dblk->vmem;
+            dblk_t *vmem = dblk->vmem;
             while (remain_size && vmem) {
                 if (remain_size > vmem->size) {
                     memcpy(mem, vmem->data, vmem->size);
@@ -63,7 +63,7 @@ static size_t dblk_node_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
     return do_size;
 }
 
-dblk_t *dblk_init(dblk_t *dblk, uint8_t *data, uint16_t size)
+dblk_t *dblk_node_init(dblk_t *dblk, uint8_t *data, uint16_t size)
 {
     if (dblk) {
         dblk->next = NULL;
@@ -76,11 +76,11 @@ dblk_t *dblk_init(dblk_t *dblk, uint8_t *data, uint16_t size)
     return dblk;
 }
 
-dblk_t *dblk_new(uint8_t *data, size_t size)
+dblk_t *dblk_node_new(uint8_t *data, size_t size)
 {
     dblk_t *dblk;
 
-    dblk = dblk_init(malloc(sizeof(dblk_t)), data, size);
+    dblk = dblk_node_init(malloc(sizeof(dblk_t)), data, size);
     if (dblk) {
         dblk->node_malloc = 1;
     }
@@ -88,14 +88,14 @@ dblk_t *dblk_new(uint8_t *data, size_t size)
     return dblk;
 }
 
-dblk_t *dblk_new_with_data(size_t size)
+dblk_t *dblk_node_new_with_buff(size_t size)
 {
     dblk_t *dblk = NULL;
     uint8_t *data;
 
     data = malloc(size);
     if (data) {
-        dblk = dblk_new(data, size);
+        dblk = dblk_node_new(data, size);
         if (dblk) {
             dblk->data_malloc = 1;
         }
@@ -108,15 +108,68 @@ dblk_t *dblk_new_with_data(size_t size)
     return dblk;
 }
 
-// list
-void dblk_delete_all(dblk_t * dblk)
+size_t dblk_node_size(const dblk_t *dblk)
+{
+    if (dblk) {
+        if (dblk->vsize) {
+            return dblk->vsize;
+        }
+        else {
+            return dblk->size;
+        }
+    }
+    return 0;
+}
+
+dblk_t *dblk_node_to_rmem_node(dblk_t *dblk, uint8_t *data, size_t size)
+{
+    if (dblk_node_is_vmem_node(dblk)) {
+        dblk->size = dblk_node_copy_to(dblk, data, size);
+        dblk->data = data;
+        dblk->vsize = 0;
+        dblk->vmem = NULL;
+    }
+	return dblk;
+}
+
+// List
+void dblk_list_delete(dblk_t * dblk)
 {
     while (dblk) {
         dblk = dblk_delete(dblk);
     }
 }
 
-// block
+int dblk_list_has_vmem_node(dblk_t *dblk)
+{
+    while (dblk) {
+        if (dblk_node_is_vmem_node(dblk)) {
+            return 1;
+        }
+        dblk = dblk_node_next(dblk);
+    }
+    return 0;
+}
+
+int dblk_list_to_rmem_list(dblk_t *dblk)
+{
+    while (dblk) {
+        if (dblk_node_is_vmem_node(dblk)) {
+            size_t blksz = dblk_node_size(dblk);
+            uint8_t *data = (uint8_t *)malloc(blksz);
+            if (!data) {
+                return 0;
+            }
+            dblk->data_malloc = 1;
+            dblk_node_to_rmem_node(dblk, data, blksz);
+        }
+        dblk = dblk->next;
+    }
+
+    return 1;
+}
+
+// Block
 dblk_t *dblk_delete(dblk_t * dblk)
 {
     dblk_t *p;
@@ -145,12 +198,7 @@ size_t dblk_size(const dblk_t *dblk)
     size_t size = 0;
 
     while (dblk) {
-        if (dblk->vsize == 0) {
-            size += dblk->size;
-        }
-        else {
-            size += dblk->vsize;
-        }
+        size += dblk_node_size(dblk);
         if (!dblk->more) {
             break;
         }
@@ -172,7 +220,7 @@ dblk_t *dblk_next(dblk_t * dblk)
     return dblk;
 }
 
-size_t dblk_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
+size_t dblk_copy_to(dblk_t *dblk, void *mem, size_t size)
 {
     size_t total = size;
     size_t do_size;
@@ -190,7 +238,7 @@ size_t dblk_copy_to(dts_net_dblk_t *dblk, void *mem, size_t size)
     return total-size;
 }
 
-size_t dblk_copy_from(dts_net_dblk_t *dblk, void *mem, size_t size)
+size_t dblk_copy_from(dblk_t *dblk, void *mem, size_t size)
 {
     size_t total = size;
     size_t do_size;
@@ -222,9 +270,9 @@ dblk_t *dblk_fragment(const dblk_t *dblk, size_t fsize)
     lgb_size = dblk_size(dblk);
     fg_cnt = lgb_size/fsize+(lgb_size%fsize>0);
 
-    e = hdr = dblk_new(NULL, 0);
+    e = hdr = dblk_node_new(NULL, 0);
     for (int i = 1; i < fg_cnt; ++i) {
-        f = dblk_new(NULL, 0);
+        f = dblk_node_new(NULL, 0);
         e->next = f;
         e = f;
     }

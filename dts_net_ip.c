@@ -134,7 +134,7 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
         ip_header.size = ip_pack(&datagram->header,
             ip_header.data, ip_header.size);
 
-        dblk_concat(&ip_header, datagram->payload);
+        dblk_node_concat(&ip_header, datagram->payload);
         datagram->raw_data = &ip_header;
         
         return ip->ll_send(ip->ll, datagram);
@@ -154,12 +154,12 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
 
             // concat header and payload_fragments
             pl_fgm_curr->next = NULL; // TODO: disconnect, because ether module will send all dblk
-            dblk_concat(&ip_header, pl_fgm_curr);
+            dblk_node_concat(&ip_header, pl_fgm_curr);
             fragment.raw_data = &ip_header;
 
             // send one fragment
             if (!ip->ll_send(ip->ll, &fragment)) {
-                dblk_delete_all(pl_fgm_curr);
+                dblk_list_delete(pl_fgm_curr);
                 return 0;
             }
 
@@ -177,7 +177,7 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
 #include <dts/net/udp.h>
 void ip_ll_recv(ip_t *ip, ip_datagram_t *datagram)
 {
-    dblk_new_from_stack(&datagram->payload, NULL, 0);
+    dblk_node_new_from_stack(&datagram->payload, NULL, 0);
     if (ip_unpack(datagram)) {
         // do fragment
         switch (datagram->header.protocol) {

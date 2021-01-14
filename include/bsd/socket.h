@@ -35,7 +35,7 @@ typedef uint16_t sa_family_t;
 typedef uint32_t socklen_t;
 
 struct in_addr {
-	__be32	s_addr;
+    __be32	s_addr;
 };
 
 #define __SOCK_SIZE__	16		/* sizeof(struct sockaddr)	*/
@@ -46,12 +46,12 @@ struct sockaddr_in {
 
     /* Pad to size of `struct sockaddr'. */
     unsigned char   __pad[__SOCK_SIZE__ - sizeof(short int) -
-			sizeof(unsigned short int) - sizeof(struct in_addr)];
+            sizeof(unsigned short int) - sizeof(struct in_addr)];
 };
 
 struct sockaddr {
-	sa_family_t	sa_family;	/* address family, AF_xxx	*/
-	char		sa_data[14];	/* 14 bytes of protocol address	*/
+    sa_family_t	sa_family;	/* address family, AF_xxx	*/
+    char		sa_data[14];	/* 14 bytes of protocol address	*/
 };
 
 #define AF_INET		2	/* Internet IP Protocol 	*/
@@ -73,13 +73,13 @@ struct sockaddr {
  * overrides this enum for binary compat reasons.
  */
 enum sock_type {
-	SOCK_STREAM	= 1,
-	SOCK_DGRAM	= 2,
-	SOCK_RAW	= 3,
-	SOCK_RDM	= 4,
-	SOCK_SEQPACKET	= 5,
-	SOCK_DCCP	= 6,
-	SOCK_PACKET	= 10,
+    SOCK_STREAM	= 1,
+    SOCK_DGRAM	= 2,
+    SOCK_RAW	= 3,
+    SOCK_RDM	= 4,
+    SOCK_SEQPACKET	= 5,
+    SOCK_DCCP	= 6,
+    SOCK_PACKET	= 10,
 };
 
 #define	ENOMEM		12	/* Out of memory */

@@ -28,6 +28,8 @@
 #include <dts/net/udp.h>
 #include <dts/net/ip.h>
 #include <dts/net/ether_arp.h>
+#include <dts/net/mem.h>
+#include <arpa/inet.h>
 
 #define MAX_SOCKET_COUNT    (2)
 #define MAX_SOCKET_SIZE     (MAX_SOCKET_COUNT+1)
@@ -103,7 +105,7 @@ int socket(int domain, int type, int protocol)
 static void nacv(struct sockaddr_in *in, ip_addr_t *out)
 {
     uint8_t *a = (uint8_t *)&(in->sin_addr.s_addr);
-    IPv4_ADDR(out, a[0], a[1], a[2], a[3]);
+    IPv4_ADDR(out, a[3], a[2], a[1], a[0]);
 }
 
 int bind(int sockfd, const struct sockaddr *host_addr, int addrlen)
@@ -121,7 +123,7 @@ int bind(int sockfd, const struct sockaddr *host_addr, int addrlen)
             sock_data[sockfd].rx_buff = NULL;
             sock_data[sockfd].rx_size = 0;
             sock_data[sockfd].rx_cnt = 0;
-            if (udp_bind(ip, sin->sin_port, udp_recv, (void *)sockfd)) {
+            if (udp_bind(ip, ntohs(sin->sin_port), udp_recv, (void *)sockfd)) {
                 return 0;
             }
         }
@@ -159,7 +161,7 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
         struct sockaddr_in *sin = (struct sockaddr_in *)dest_addr;
         ip_addr_t ipa;
         nacv(sin, &ipa);
-        if (udp_sendto(&ipa, sin->sin_port, (uint8_t *)buf, len)) {
+        if (udp_sendto(&ipa, ntohs(sin->sin_port), (uint8_t *)buf, len)) {
             return len;
         }
 

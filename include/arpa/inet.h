@@ -27,50 +27,53 @@
 #ifndef INET_H_
 #define INET_H_
 
-union _4barr
-{
-    uint32_t mem;
-    struct {
-        uint8_t arr[4];
-    } arr;
-};
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
-union _2barr
+static union
 {
-    uint16_t mem;
-    struct {
-        uint8_t arr[2];
-    } arr;
-};
+    char ch[4];
+    uint32_t u32;
+} endian = {{'L', '?', '?', 'B'}};
+#define INET_ENDIAN ((char)endian.u32)
 
-static uint32_t htonl(uint32_t hostlong)
+
+
+static inline uint32_t htonl(uint32_t hl)
 {
-    uint8_t b;
-    union _4barr *ba = (union _4barr *)(&hostlong);
-    b = ba->arr.arr[0];
-    ba->arr.arr[0] = ba->arr.arr[3];
-    ba->arr.arr[3] = b;
-    b = ba->arr.arr[1];
-    ba->arr.arr[1] = ba->arr.arr[2];
-    ba->arr.arr[2] = b;
-    return hostlong;
+    if (INET_ENDIAN == 'L') {
+        hl = ((hl<<24)|(hl>>24))|((hl&0x00FF0000)>>8)|((hl&0x0000FF00)<<8);
+    }
+
+    return hl;
 }
-static inline uint16_t htons(uint16_t hostshort)
+static inline uint16_t htons(uint16_t hs)
 {
-    uint8_t b;
-    union _2barr *ba = (union _2barr *)(&hostshort);
-    b = ba->arr.arr[0];
-    ba->arr.arr[0] = ba->arr.arr[1];
-    ba->arr.arr[1] = b;
-    return hostshort;
+    if (INET_ENDIAN == 'L') {
+        hs = (hs<<8)|(hs>>8);
+    }
+
+    return hs;
 }
-static inline uint32_t ntohl(uint32_t netlong)
+static inline uint32_t ntohl(uint32_t nl)
 {
-    return htonl(netlong);
+    return htonl(nl);
 }
-static inline uint16_t ntohs(uint16_t netshort)
+static inline uint16_t ntohs(uint16_t ns)
 {
-    return htons(netshort);
+    return htons(ns);
+}
+
+static inline uint32_t inet_addr(const char *str)
+{
+    uint32_t hl = 0;
+    #define pHL ((char *)&hl)
+    for (int i = 0; i < 4 && str; ++i,++str) {
+        pHL[i] = atoi(str);
+        str = strchr(str, '.');
+    }
+    return htonl(hl);
 }
 
 #endif // INET_H_

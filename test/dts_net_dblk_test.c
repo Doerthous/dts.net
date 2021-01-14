@@ -30,18 +30,9 @@ int main()
     printf("\n");
 
     dblk_copy_from(b1, "123456789098765432101234567890123456", 36);
-    it = b1;
-    while (it) {
-        for (int i = 0; i < it->size; ++i) {
-            printf("%02X ", it->data[i]);
-        }
-        it = it->next;
-    }
-    printf("\n");
-
     char buff[36];
     {
-        int c = (int)dblk_copy_to(b1, buff, 35);
+        int c = (int)dblk_copy_to(b1, buff, 36);
         for (int i = 0; i < c; ++i) {
             printf("%02X ", buff[i]);
         }
@@ -53,12 +44,7 @@ int main()
     while (it) {
         memset(buff, 0, 36);
         int c = (int)dblk_copy_to(it, buff, 36);
-        if (dblk_node_is_vmem_node(it)) {
-            printf("vn: ");
-        }
-        else {
-            printf(" n: ");
-        }
+        printf("%sn: ", dblk_node_is_vmem_node(it)?"v":" ");
         for (int i = 0; i < c; ++i) {
              printf("%02X ", buff[i]);
         }
@@ -71,12 +57,7 @@ int main()
         while (it) {
             memset(buff, 0, 36);
             int c = (int)dblk_copy_to(it, buff, 36);
-            if (dblk_node_is_vmem_node(it)) {
-                printf("vn: ");
-            }
-            else {
-                printf(" n: ");
-            }
+            printf("%sn: ", dblk_node_is_vmem_node(it)?"v":" ");
             for (int i = 0; i < c; ++i) {
                 printf("%02X ", buff[i]);
             }
@@ -92,12 +73,7 @@ int main()
     while (it) {
         memset(buff, 0, 36);
         int c = (int)dblk_copy_to(it, buff, 36);
-        if (dblk_node_is_vmem_node(it)) {
-            printf("vn: ");
-        }
-        else {
-            printf(" n: ");
-        }
+        printf("%sn: ", dblk_node_is_vmem_node(it)?"v":" ");
         for (int i = 0; i < c; ++i) {
              printf("%02X ", buff[i]);
         }

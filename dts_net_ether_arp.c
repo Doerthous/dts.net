@@ -30,6 +30,9 @@
 #include <dts/net/arp.h>
 #include <dts/net/dblk.h>
 #include <dts/net/mem.h>
+#include <dts/net/sys.h>
+
+#include <dts/embedded/lib/timer.h>
 
 static int ip_ether_send(ether_t *eth, ip_datagram_t *datagram)
 {
@@ -122,15 +125,37 @@ void ether_arp_ether_recv(ether_t *ether, arp_packet_t *pkt)
                 if (arpti) {
                     memcpy(arpti->ip, pkt->spa, 4);
                     memcpy(arpti->mac, pkt->sha, 6);
-                    // TODO: start time
-                    arpti->lease = 7200; // 2h
+                    timer_init(&arpti->tmr, sys_tick_s);
+                    timer_start(&arpti->tmr, 7200); // 2H
                     list_add(&arp_table, arpti);
                     break;
                 }
                 else {
-                    // TODO: delete the shortest one
-                    //mem_free_arpti(arpti);
-					break;
+                    int rm_cnt = 0;
+                    ether_arp_ti_t *shortest = NULL;
+                    // try to release timeout items.
+                    list_foreach(ether_arp_ti_t, item, &arp_table, {
+                        ether_arp_ti_t *dead = (*item);
+						if (timer_expired(&dead->tmr)) {
+                            list_foreach_remove(item);
+                            mem_free_arpti(dead);
+                            rm_cnt++;
+						}
+                        else {
+                            if ((shortest == NULL )
+                                || (timer_remain(&dead->tmr) < 
+                                    timer_remain(&shortest->tmr))) {
+                                shortest = dead;
+                            }
+                        }
+                    });
+                    // if no timeout item, we release the item whose remain time
+                    // is shortest.
+                    if (rm_cnt == 0) {
+                        list_remove(&arp_table, shortest);
+                        mem_free_arpti(shortest);
+                    }
+					continue; // try to add the new item again.
                 }
             }
             return;

@@ -70,4 +70,8 @@
 
     目前仅依赖dts.datastruct.list
 
+- 对dts.elib的依赖
+
+    dts.elib.timer
+
 - 需要timer及rtc功能（目前还没有）

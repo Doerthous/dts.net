@@ -21,16 +21,21 @@
    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
    DEALINGS IN THE SOFTWARE.
 
-   Author: Doerthous <doerthous@gmail.com>
+   Authour: Doerthous <doerthous@gmail.com>
 */
 
-#ifndef DTS_NET_CONF_H_
-#define DTS_NET_CONF_H_
+#ifndef DTS_NET_SYS_H_
+#define DTS_NET_SYS_H_
 
-#define DTS_NET_ARP_TABLE_MAX_SIZE      1
-#define DTS_NET_NET_IF_MAX_COUNT        1
-#define DTS_NET_SERVER_UDP_MAX_COUNT    1
-#define DTS_NET_IP_DATAGRAM_MAX_COUNT   1
-#define DTS_NET_SYS_HEARTBEAT_FREQ      1
+#include <dts_net_conf.h>
+#include <stddef.h>
 
-#endif // DTS_NET_CONF_H_
+/**
+ * @brief call me with frequency of DTS_NET_SYS_HEARTBEAT_FREQ
+ * 
+ */
+void dts_net_sys_heartbeat(void);
+
+size_t dts_net_sys_tick_s(void);
+
+#endif // DTS_NET_SYS_H_

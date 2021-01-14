@@ -30,6 +30,7 @@
 #include <dts_net_ether.h>
 #include <dts_net_arp.h>
 #include <dts_net_ip.h>
+#include <dts_elib_timer.h>
 
 #define ETHER_TYPE_ARP  0x0806
 #define ETHER_TYPE_IP   0x0800
@@ -50,7 +51,7 @@ typedef struct
     
     uint8_t ip[4];
     uint8_t mac[6];
-    uint16_t lease;
+    dts_elib_timer_t tmr;
 } dts_net_ether_arp_ti_t; // arp table item
 
 #include <string.h>

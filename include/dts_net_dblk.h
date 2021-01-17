@@ -147,7 +147,8 @@ void dts_net_dblk_node_concat(dts_net_dblk_t * b1, dts_net_dblk_t * b2);
 #define dts_net_dblk_node_concat(b1, b2) do \
 { \
     (b1)->next = (b2); \
-    (b1)->more = 1; \
+    if (b2) \
+        (b1)->more = 1; \
 } while (0)
 
 /**

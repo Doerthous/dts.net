@@ -91,7 +91,7 @@ size_t udp_pack(udp_datagram_t *dg)
 #include <dts/datastruct/list.h>
 typedef struct { ip_t *ip; int port; } _addr_t;
 static list_t udp_list;
-int list_match(void *n, void *d)
+static int list_match(void *n, void *d)
 {
     udp_t *u = (udp_t *)n;
     _addr_t *v = (_addr_t *)d;

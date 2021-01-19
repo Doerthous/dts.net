@@ -163,6 +163,8 @@ int dts_net_dblk_node_is_vmem_node(dts_net_dblk_t *dblk);
 dts_net_dblk_t *dts_net_dblk_node_to_rmem_node(dts_net_dblk_t *dblk, 
     uint8_t *data, size_t size);
 
+dts_net_dblk_t *dts_net_dblk_node_copy(dts_net_dblk_t *dblk);
+
 // List 
 /**
  * @brief This will delete all Nodes of the list, No care the more field of 
@@ -240,5 +242,9 @@ size_t dts_net_dblk_copy_from(dts_net_dblk_t *dblk, void *mem, size_t size);
  *        is undefined.
  */
 dts_net_dblk_t *dts_net_dblk_fragment(const dts_net_dblk_t *dblk, size_t fsize);
+
+void dts_net_dblk_merge(dts_net_dblk_t *blk, dts_net_dblk_t *node);
+
+dts_net_dblk_t *dts_net_dblk_copy(dts_net_dblk_t *dblk);
 
 #endif // DTS_NET_DBLK_H_

@@ -132,6 +132,16 @@ dblk_t *dblk_node_to_rmem_node(dblk_t *dblk, uint8_t *data, size_t size)
 	return dblk;
 }
 
+dblk_t *dblk_node_copy(dblk_t *dblk)
+{
+    dblk_t *cpy;
+    cpy = dblk_node_new_with_buff(dblk_node_size(dblk));
+    if (cpy) {
+        dblk_copy_to(dblk, cpy->data, cpy->size);
+    }
+	return cpy;
+}
+
 // List
 void dblk_list_delete(dblk_t * dblk)
 {
@@ -312,4 +322,28 @@ dblk_t *dblk_fragment(const dblk_t *dblk, size_t fsize)
     }
 
     return hdr;
+}
+
+void dblk_merge(dblk_t *b, dblk_t *n)
+{
+    if (n) {
+        while (1) {
+            if (!b->more) {
+                n->next = b->next;
+                b->next = n;
+                b->more = 1;
+                break;
+            }
+            b = b->next;
+        }
+    }
+}
+
+dblk_t *dblk_copy(dblk_t *dblk)
+{
+    dblk_t *cpy = dblk_node_new_with_buff(dblk_size(dblk));
+	if (cpy) {
+		dblk_copy_to(dblk, cpy->data, cpy->size);
+	}
+	return cpy;
 }

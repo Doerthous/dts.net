@@ -53,6 +53,7 @@
 #define dblk_node_concat dts_net_dblk_node_concat
 #define dblk_node_is_vmem_node dts_net_dblk_node_is_vmem_node
 #define dblk_node_to_rmem_node dts_net_dblk_node_to_rmem_node
+#define dblk_node_copy dts_net_dblk_node_copy
 
 #define dblk_list_delete dts_net_dblk_list_delete
 #define dblk_list_has_vmem_node dts_net_dblk_list_has_vmem_node
@@ -64,8 +65,8 @@
 #define dblk_copy_to dts_net_dblk_copy_to
 #define dblk_copy_from dts_net_dblk_copy_from
 #define dblk_fragment dts_net_dblk_fragment
-
-
+#define dblk_merge dts_net_dblk_merge
+#define dblk_copy dts_net_dblk_copy
 
 
 #endif // DBLK_H_

@@ -144,6 +144,7 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
         return ip->ll_send(ip->ll, datagram);
     }
     else {
+        // TODO: delete payload!
         dblk_t *pl_fgm_curr = dblk_fragment(datagram->payload, 1400);
         dblk_t *pl_fgm_next = dblk_next(pl_fgm_curr);
         datagram->header.fragment_offset = 0;
@@ -161,6 +162,8 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
             // send one fragment
             if (!ip->ll_send(ip->ll, datagram)) {
                 dblk_list_delete(pl_fgm_curr);
+                dblk_list_delete(pl_fgm_next);
+                dblk_list_delete(datagram->payload);
                 return 0;
             }
 
@@ -170,19 +173,21 @@ int ip_hl_send(ip_t *ip, ip_datagram_t *datagram)
             pl_fgm_next = dblk_next(pl_fgm_next);
         }
 
+        dblk_list_delete(datagram->payload);
         return 1;
     }
 }
 
 #include <dts/net/icmp.h>
 #include <dts/net/udp.h>
+#include <dts/net/tcp.h>
 void ip_ll_recv(ip_t *ip, ip_datagram_t *datagram)
 {
     dblk_node_new_from_stack(&datagram->payload, NULL, 0);
     if (ip_header_unpack(datagram)) {
         int hdr_sz = (datagram->header.ihl*4);
         datagram->payload->data = datagram->raw_data->data+hdr_sz;
-        datagram->payload->size = datagram->raw_data->size-hdr_sz;
+        datagram->payload->size = datagram->header.total_length-hdr_sz;
         
         // do fragment
         switch (datagram->header.protocol) {
@@ -190,6 +195,7 @@ void ip_ll_recv(ip_t *ip, ip_datagram_t *datagram)
                 icmp_ip_recv(ip, datagram);
                 break;
             case IP_PROTOCOL_TCP:
+                tcp_ip_recv(ip, datagram);
                 break;
             case IP_PROTOCOL_UDP: {
                 udp_ip_recv(ip, datagram);

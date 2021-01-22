@@ -31,6 +31,6 @@
 #define DTS_NET_NET_IF_MAX_COUNT        1
 #define DTS_NET_SERVER_UDP_MAX_COUNT    1
 #define DTS_NET_IP_DATAGRAM_MAX_COUNT   1
-#define DTS_NET_SYS_HEARTBEAT_FREQ      1
+#define DTS_NET_SYS_HEARTBEAT_FREQ      1 // HZ
 
 #endif // DTS_NET_CONF_H_

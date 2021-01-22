@@ -152,7 +152,20 @@ static void mem_free_tcp_segment(tcp_segment_t *seg)
 {
     free(seg);
 }
-
+static size_t tcp_segment_length(tcp_segment_t *seg)
+{
+    size_t sl = 0;
+    if (seg) {
+        if (SEG_CTRL_S(seg))  {
+            sl += 1;
+        }
+        sl += dblk_size(seg->payload);
+        if (SEG_CTRL_F(seg)) {
+            sl += 1;
+        }
+    }
+    return sl;
+}
 
 // op:
 #define SN_LS 0 // <
@@ -229,7 +242,7 @@ uint32_t tcp_generate_isn(void)
 
 void tcp_loop(tcp_t *tcp)
 {
-    if (timer_expired(&tcp->tmr)) {
+    if (tcp && timer_expired(&tcp->tmr)) {
         timer_stop(&tcp->tmr);
 		void tcp_timeout(void *);
         tcp_timeout(tcp);
@@ -307,16 +320,8 @@ static int tcp_send_ctrl_seg(tcp_t *tcp, uint32_t seq, uint32_t ack, uint16_t fl
 }
 static void tcp_retransmit(tcp_t *tcp)
 {
-    tcp_segment_t *seg;
-    if (tcp->tx_seg) { // if tcp has data to send
-        seg = tcp->tx_seg;
-    }
-    else if (tcp->tx_fin) { // else send fin
-        seg = tcp->tx_fin;
-    }
-
-    if (seg) {
-        tcp_ip_send(tcp, seg); // send data
+    if (tcp->tx_seg) {
+        tcp_ip_send(tcp, tcp->tx_seg); // send data
     }
     //sys_timer_start(&tcp->ctmr, 5);
     timer_start(&tcp->tmr, 5);
@@ -354,8 +359,7 @@ static void tcp_construct_data(tcp_t *tcp)
                 tcp_pack(tcp->tx_seg);
                 tcp_ip_send(tcp, tcp->tx_seg);
                 timer_start(&tcp->tmr, 3);
-
-                tcp->snd.nxt += dblk_size(tx);
+                tcp->snd.nxt += tcp_segment_length(tcp->tx_seg);
             }
         }
     }
@@ -379,7 +383,7 @@ static int tcp_handle_ack_of_data(tcp_t *tcp, tcp_segment_t *ack)
 static int tcp_handle_data(tcp_t *tcp, tcp_segment_t *dat)
 {
     if (dat->seq == tcp->rcv.nxt) {
-        int seg_len = dblk_size(dat->payload);
+        int seg_len = tcp_segment_length(dat);
         if (seg_len > 0) {
             seg_len = seg_len > tcp->rcv.wnd ? tcp->rcv.wnd : seg_len;
             dblk_t *rx = dblk_node_new_with_buff(seg_len);
@@ -405,26 +409,26 @@ static int tcp_handle_data(tcp_t *tcp, tcp_segment_t *dat)
 static void tcp_contruct_fin_ack(tcp_t *tcp)
 {
     // if data transmission complete
-    if ((dblk_size(tcp->tx_data) == 0) && (tcp->tx_seg == NULL)) {
-        if (tcp->tx_fin == NULL) {
-            tcp->tx_fin = mem_alloc_tcp_segment();
-            if (tcp->tx_fin) {
-                tcp->tx_fin->src_port = tcp->port;
-                tcp->tx_fin->dest_port = tcp->dest_port;
-                tcp->tx_fin->seq = tcp->snd.una;
-                tcp->tx_fin->ack = tcp->rcv.nxt;
-                tcp->tx_fin->data_offset = 5; // 20B
-                tcp->tx_fin->flags |= (SEG_FLAG_FIN|SEG_FLAG_ACK);
-                tcp->tx_fin->win = tcp->rcv.wnd;
-                tcp->tx_fin->raw_data = dblk_node_new_with_buff(32);
-                pseudo_header_new_from_stack(&tcp->tx_fin->psdhdr, 
+    if (list_length((list_t*)&tcp->tx_data) == 0) {
+        if (tcp->tx_seg == NULL) {
+            tcp->tx_seg = mem_alloc_tcp_segment();
+            if (tcp->tx_seg) {
+                tcp->tx_seg->src_port = tcp->port;
+                tcp->tx_seg->dest_port = tcp->dest_port;
+                tcp->tx_seg->seq = tcp->snd.una;
+                tcp->tx_seg->ack = tcp->rcv.nxt;
+                tcp->tx_seg->data_offset = 5; // 20B
+                tcp->tx_seg->flags |= (SEG_FLAG_FIN|SEG_FLAG_ACK);
+                tcp->tx_seg->win = tcp->rcv.wnd;
+                tcp->tx_seg->raw_data = dblk_node_new_with_buff(32);
+                pseudo_header_new_from_stack(&tcp->tx_seg->psdhdr, 
                     &tcp->localhost->addr, &tcp->dest, 
                     IP_PROTOCOL_TCP, 0);
-                tcp_pack(tcp->tx_fin);
+                tcp_pack(tcp->tx_seg);
                 //sys_timer_start(&tcp->ctmr, 1);
                 timer_start(&tcp->tmr, 1);
 
-                tcp->snd.nxt += 1;
+                tcp->snd.nxt += tcp_segment_length(tcp->tx_seg);
             }
         }
     }
@@ -433,9 +437,9 @@ static void tcp_contruct_fin_ack(tcp_t *tcp)
 // receive <ACK> of <FIN,ACK>
 static int tcp_handle_ack_of_fin_ack(tcp_t *tcp, tcp_segment_t *ack)
 {
-    if (tcp && tcp->tx_fin) {
-        if (tcp->tx_fin->seq+1 == ack->ack) {
-            tcp_tx_seg_complete(tcp, &tcp->tx_fin);
+    if (tcp && tcp->tx_seg) {
+        if (tcp->tx_seg->seq+1 == ack->ack) {
+            tcp_tx_seg_complete(tcp, &tcp->tx_seg);
             return 1;
         }
     }
@@ -524,28 +528,16 @@ tcp_t *tcp_open(ip_addr_t *local, int port, ip_addr_t *dest, int dest_port)
 }
 
 // EVENT TIMEOUT
-void timeout_when_syn_sent(tcp_t *tcp) 
-{
-    tcp_retransmit(tcp);
-}
-void timeout_when_fin_wait_1(tcp_t *tcp)
-{
-    tcp_retransmit(tcp);
-}
 void timeout_when_time_wait(tcp_t *tcp)
 {
     tcp->state = TCP_STATE_CLOSED;
 }
-void timeout_when_last_ack(tcp_t *tcp)
-{
-    tcp_retransmit(tcp);
-}
 static void (*timeout_event_process[TCP_STATE_COUNT])(tcp_t *t) = 
 {
-    [TCP_STATE_SYN_SENT] = timeout_when_syn_sent,
-    [TCP_STATE_FIN_WAIT_1] = timeout_when_fin_wait_1,
+    [TCP_STATE_SYN_SENT] = tcp_retransmit,
+    [TCP_STATE_FIN_WAIT_1] = tcp_retransmit,
     [TCP_STATE_TIME_WAIT] = timeout_when_time_wait,
-    [TCP_STATE_LAST_ACK] = timeout_when_last_ack,
+    [TCP_STATE_LAST_ACK] = tcp_retransmit,
     [TCP_STATE_ESTABLISHED] = tcp_retransmit,
 };
 void tcp_timeout(void *tcp)
@@ -603,7 +595,7 @@ void received_when_established(tcp_t *tcp)
     if (!seg) {
         return;
     }
-	size_t seg_len = dblk_size(seg->payload);
+	size_t seg_len = tcp_segment_length(seg);
 
     /* 1. check sequence number
     */
@@ -613,7 +605,7 @@ void received_when_established(tcp_t *tcp)
     RSTs.
     */
     if (tcp->rcv.wnd == 0) {
-        if (dblk_size(seg->payload) == 0) {
+        if (seg_len == 0) {
             if (seg->seq == tcp->rcv.nxt) {
                 if (SEG_CTRL_A(seg)) {
                     // TODO
@@ -677,7 +669,7 @@ void received_when_established(tcp_t *tcp)
     /* 5. check the ACK field
     */
     if (SEG_CTRL_A(seg)) {
-        if (tcp->tx_seg) {
+        if (!SEG_CTRL_F(tcp->tx_seg)) { // TODO: will fin come with data?
             tcp_handle_ack_of_data(tcp, seg); // normal data transmission ack
         }
     }
@@ -734,7 +726,7 @@ void received_when_fin_wait_1(tcp_t *tcp)
         }
         */
         if (SEG_CTRL_A(seg)) {
-            if (tcp->tx_seg) {
+            if (!SEG_CTRL_F(tcp->tx_seg)) {
                 tcp_handle_ack_of_data(tcp, seg); // normal data transmission ack
             }
             else {
@@ -785,7 +777,7 @@ void received_when_last_ack(tcp_t *tcp)
     tcp_segment_t *seg = list_dequeue((list_t *)&tcp->rx_segs);
     if (seg) {
         if (SEG_CTRL_A(seg)) {
-            if (tcp->tx_seg) {
+            if (!SEG_CTRL_F(tcp->tx_seg)) {
                 tcp_handle_ack_of_data(tcp, seg); // normal data transmission ack
             }
             else {

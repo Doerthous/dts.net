@@ -69,7 +69,6 @@ typedef struct
     void *tx_data;
     void *rx_data;
     dts_net_tcp_segment_t *tx_seg;
-    dts_net_tcp_segment_t *tx_fin;
 
     struct {
         uint32_t una; // oldest unacknowledged sequence number

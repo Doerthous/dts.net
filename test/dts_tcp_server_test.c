@@ -5,18 +5,19 @@
 #define USING_DTS_COROUTINE
 #include <dts_coroutine.h>
 
+#define SERVER_ADDR
+#define SERVER_PORT 12345
+
 int tcp_server_test(void)
 {
     static tcp_t *tcp;
     static timer_t tmr;
     
-    tcp_loop(tcp);
-    
     co_start();
     
     {
         DTS_NET_IPv4_ADDR_DEF(local, 10,0,0,2);
-        tcp = tcp_open(&local, 5000, NULL, 0);
+        tcp = tcp_open(&local, SERVER_PORT, NULL, 0);
     }
     
     if (tcp) {

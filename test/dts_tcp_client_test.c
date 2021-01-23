@@ -10,8 +10,6 @@ int tcp_client_test(void)
     static tcp_t *tcp;
     static timer_t tmr;
     
-    tcp_loop(tcp);
-    
     co_start();
     
     {

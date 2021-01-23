@@ -227,8 +227,8 @@ enum
     TCP_STATE_FIN_WAIT_1,
     TCP_STATE_FIN_WAIT_2,
     TCP_STATE_TIME_WAIT,
-	TCP_STATE_CLOSE_WAIT,
-	TCP_STATE_LAST_ACK,
+    TCP_STATE_CLOSE_WAIT,
+    TCP_STATE_LAST_ACK,
     TCP_STATE_CLOSING,
     TCP_STATE_COUNT,
 };
@@ -238,15 +238,6 @@ enum
 uint32_t tcp_generate_isn(void)
 {
     return sys_tick_s();
-}
-
-void tcp_loop(tcp_t *tcp)
-{
-    if (tcp && timer_expired(&tcp->tmr)) {
-        timer_stop(&tcp->tmr);
-		void tcp_timeout(void *);
-        tcp_timeout(tcp);
-    }
 }
 
 // interface for user
@@ -463,7 +454,7 @@ static int tcp_handle_fin_ack(tcp_t *tcp, tcp_segment_t *seg)
         // ack back
         return tcp_send_ctrl_seg(tcp, tcp->snd.una, tcp->rcv.nxt, SEG_FLAG_ACK);
     }
-	return 0;
+    return 0;
 }
 
 // EVENT OPEN
@@ -473,6 +464,8 @@ void open_when_closed(tcp_t *tcp)
     tcp->snd.una = tcp->snd.iss = tcp_generate_isn();
     // Specification said: set snd.nxt <- iss+1, but we not do it.
     tcp->snd.nxt = tcp->snd.iss;//+1;
+
+    tcp->time_wait_seconds = 120;
 
     if (tcp->passive) {
         tcp->state = TCP_STATE_LISTEN;
@@ -558,7 +551,7 @@ void tcp_timeout(void *tcp)
 // EVENT SEGMENT ARRIVES
 static int process_received_seq(tcp_t *tcp, tcp_segment_t *seg)
 {
-	size_t seg_len = tcp_segment_length(seg);
+    size_t seg_len = tcp_segment_length(seg);
 
     /* 1. check sequence number
     */
@@ -674,8 +667,8 @@ void received_when_listen(tcp_t *tcp)
             tcp->dest = seg->datagram->header.src;
             if (tcp_send_ctrl_seg(tcp, tcp->snd.iss, tcp->rcv.nxt, 
                 SEG_FLAG_SYN|SEG_FLAG_ACK)) {
-				tcp->state = TCP_STATE_SYN_RECEIVED;
-			}
+                tcp->state = TCP_STATE_SYN_RECEIVED;
+            }
         }
     }
 }
@@ -795,7 +788,7 @@ void received_when_established(tcp_t *tcp)
     if (!seg) {
         return;
     }
-	
+    
     /* 1. check the sequence number */
     if (!process_received_seq(tcp, seg)) {
         return;
@@ -892,7 +885,7 @@ void received_when_fin_wait_2(tcp_t *tcp)
             tcp->state = TCP_STATE_TIME_WAIT;
             // start timer 2min
             //sys_timer_start(&tcp->ctmr, 120);
-            timer_start(&tcp->tmr, 120);
+            timer_start(&tcp->tmr, tcp->time_wait_seconds);
             tcp_handle_fin_ack(tcp, seg);
         }
     }
@@ -982,11 +975,6 @@ void tcp_close(tcp_t *tcp)
             if (close_event_process[((tcp_t *)(tcp))->state]) {
                 close_event_process[((tcp_t *)(tcp))->state](tcp);
             }
-            if (tcp->state == TCP_STATE_CLOSED) {
-                list_foreach_remove(t);
-                free(tcp);
-                break;
-            }
         }
     });
 }
@@ -1056,4 +1044,20 @@ int tcp_status(tcp_t *tcp)
         return tcp->state;
     }
     return TCP_STATE_CLOSED;
+}
+
+void tcp_loop(void)
+{
+    tcp_t *tcp;
+    list_foreach(tcp_t, t, &tcp_list, {
+        tcp = (*t);
+        if (timer_expired(&(tcp)->tmr)) {
+            timer_stop(&(tcp)->tmr);
+            tcp_timeout(tcp);
+        }
+        if (tcp->state == TCP_STATE_CLOSED) {
+            list_foreach_remove(t);
+            free(tcp);
+        }
+    });
 }

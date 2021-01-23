@@ -87,6 +87,9 @@ typedef struct
     } rcv;
 
     dts_elib_timer_t tmr;
+
+    //
+    size_t time_wait_seconds;
 } dts_net_tcp_t;
 
 // high level
@@ -115,7 +118,7 @@ enum
 };
 int dts_net_tcp_status(dts_net_tcp_t *tcp);
 
-void dts_net_tcp_loop(dts_net_tcp_t *tcp);
+void dts_net_tcp_loop(void);
 
 // ll interfaces
 void dts_net_tcp_ip_recv(dts_net_ip_t *ip, dts_net_ip_datagram_t *dg);

@@ -26,40 +26,63 @@
 
 #include <bsd/socket.h>
 #include <dts/net/udp.h>
+#include <dts/net/tcp.h>
 #include <dts/net/ip.h>
 #include <dts/net/ether_arp.h>
 #include <dts/net/mem.h>
 #include <arpa/inet.h>
 
-#define MAX_SOCKET_COUNT    (2)
-#define MAX_SOCKET_SIZE     (MAX_SOCKET_COUNT+1)
-#define BIT_MAP             (0)
-#define bit(i)              (1<<(i))
-static struct {
+typedef struct scoket {
+    void *next;
+
     int domain;
     int type;
     int protocol;
     union {
         udp_t udp;
+        tcp_t *tcp;
     } module;
 
     uint8_t *rx_buff;
     uint32_t rx_size;
     uint32_t rx_cnt;
-} sock_data[MAX_SOCKET_SIZE];
-static int socks[MAX_SOCKET_SIZE];
+} socket_t;
+
+#include <dts/datastruct/list.h>
+
+#define MEM_ITEM_LIST_API(type, name, count) \
+ static list_t name##_list; \
+ static type name##s[count]; \
+ type *mem_alloc_##name(void) { \
+     return list_dequeue(&name##_list); \
+ } \
+ void mem_free_##name(type *name) { \
+     list_enqueue(&name##_list, name); \
+ }
+#define MEM_ITEM_LIST_API_INIT(name, count) \
+ for (int i = 0; i < count; ++i) { \
+     list_enqueue(&name##_list, &name##s[i]); \
+ }
+
+static int socket_api_inited;
+#define DTS_NET_SOCKET_MAX_COUNT 10
+MEM_ITEM_LIST_API(socket_t, socket, DTS_NET_SOCKET_MAX_COUNT);
 
 
-static int IS_ERROR_SOCK(int fd) 
-{
-    return ((fd)<1) || ((fd)>MAX_SOCKET_COUNT) || (!(socks[BIT_MAP] & bit(fd)));
-}
+#define to_socket(fd) ((socket_t *)fd)
 
 #define IS_UDP_SOCK(fd) ( \
-    (sock_data[fd].domain == AF_INET) && \
-    (sock_data[fd].domain == PF_INET) && \
-    (sock_data[fd].type == SOCK_DGRAM) && \
-    (sock_data[fd].protocol == 0) \
+    (to_socket(fd)->domain == AF_INET) && \
+    (to_socket(fd)->domain == PF_INET) && \
+    (to_socket(fd)->type == SOCK_DGRAM) && \
+    (to_socket(fd)->protocol == 0) \
+)
+
+#define IS_TCP_SOCK(fd) ( \
+    (to_socket(fd)->domain == AF_INET) && \
+    (to_socket(fd)->domain == PF_INET) && \
+    (to_socket(fd)->type == SOCK_STREAM) && \
+    (to_socket(fd)->protocol == 0) \
 )
 
 #include <string.h>
@@ -67,39 +90,40 @@ static void udp_recv(void * cb_data, uint8_t *data, uint32_t size)
 {
     int fd = (int)cb_data;
 
-    if (IS_ERROR_SOCK(fd)) {
-        return;
-    }
-
-    if (sock_data[fd].rx_buff) {
-        size_t remain_size = sock_data[fd].rx_size - sock_data[fd].rx_cnt;
+    if (to_socket(fd)->rx_buff) {
+        size_t remain_size = to_socket(fd)->rx_size - to_socket(fd)->rx_cnt;
         size = size > remain_size ? remain_size : size;
 
-        memcpy(sock_data[fd].rx_buff, data, size);
+        memcpy(to_socket(fd)->rx_buff, data, size);
 
-        sock_data[fd].rx_cnt += size;
+        to_socket(fd)->rx_cnt += size;
     }
 }
 
 
 int socket(int domain, int type, int protocol)
 {
-    if (domain != AF_INET || domain != PF_INET || type != SOCK_DGRAM 
-        || protocol != 0) {
-        return -EINVAL;
+    socket_t *sk;
+
+    if (!socket_api_inited) {
+        socket_api_inited = 1;
+        MEM_ITEM_LIST_API_INIT(socket, DTS_NET_SOCKET_MAX_COUNT);
     }
 
-    for (int i = 1; i <= MAX_SOCKET_COUNT; ++i) {
-        if (!(socks[BIT_MAP] & bit(i))) {
-            socks[BIT_MAP] |= bit(i);
-            sock_data[i].domain = domain;
-            sock_data[i].type = type;
-            sock_data[i].protocol = protocol;
-            return i;
+    if ((domain == AF_INET || domain == PF_INET) && protocol == 0) {
+        if (type == SOCK_DGRAM || type == SOCK_STREAM) {
+            sk = mem_alloc_socket(); // will sk < 0?
+            if (sk) {
+                sk->domain = domain;
+                sk->type = type;
+                sk->protocol = protocol;
+                return (int)sk;
+            }
+            return -ENOMEM;
         }
     }
 
-    return -ENOMEM;
+    return -EINVAL;
 }
 
 static void nacv(struct sockaddr_in *in, ip_addr_t *out)
@@ -108,22 +132,18 @@ static void nacv(struct sockaddr_in *in, ip_addr_t *out)
     IPv4_ADDR(out, a[3], a[2], a[1], a[0]);
 }
 
-int bind(int sockfd, const struct sockaddr *host_addr, int addrlen)
+int bind(int fd, const struct sockaddr *host_addr, int addrlen)
 {
-    if (IS_ERROR_SOCK(sockfd)) {
-        return -EINVAL;
-    }
-
-    if (IS_UDP_SOCK(sockfd)) {
+    if (IS_UDP_SOCK(fd)) {
         struct sockaddr_in *sin = (struct sockaddr_in *)host_addr;
         ip_addr_t ipa;
         nacv(sin, &ipa);
         ip_t *ip = ip_find_netif(&ipa);
         if (ip) {
-            sock_data[sockfd].rx_buff = NULL;
-            sock_data[sockfd].rx_size = 0;
-            sock_data[sockfd].rx_cnt = 0;
-            if (udp_bind(ip, ntohs(sin->sin_port), udp_recv, (void *)sockfd)) {
+            to_socket(fd)->rx_buff = NULL;
+            to_socket(fd)->rx_size = 0;
+            to_socket(fd)->rx_cnt = 0;
+            if (udp_bind(ip, ntohs(sin->sin_port), udp_recv, (void *)fd)) {
                 return 0;
             }
         }
@@ -134,63 +154,92 @@ int bind(int sockfd, const struct sockaddr *host_addr, int addrlen)
 
 int close(int fd)
 {
-    if (fd < 1 || fd > MAX_SOCKET_COUNT) {
-        return -EINVAL;
+    socket_t *sk = to_socket(fd);
+    if (IS_TCP_SOCK(fd)) {
+        if (sk->module.tcp) {
+            sk->module.tcp->time_wait_seconds=1;
+            tcp_close(sk->module.tcp);
+        }
     }
 
-    if (socks[BIT_MAP] & bit(fd)) {
-        socks[BIT_MAP] &= ~bit(fd); 
-    }
+    mem_free_socket(to_socket(fd));
 
     return 0;
 }
 
 #include <dts/net/ether_arp.h>
-ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+ssize_t sendto(int fd, const void *buf, size_t len, int flags,
                const struct sockaddr *dest_addr, socklen_t addrlen)
 {
-    if (IS_ERROR_SOCK(sockfd)) {
-        return -EINVAL;
-    }
+    socket_t *sk = to_socket(fd);
 
-    if (!IS_UDP_SOCK(sockfd)) {
-        return -EINVAL;
-    }
-
-    if (dest_addr->sa_family == AF_INET) {
+    if (IS_UDP_SOCK(fd)) {
         struct sockaddr_in *sin = (struct sockaddr_in *)dest_addr;
         ip_addr_t ipa;
         nacv(sin, &ipa);
         if (udp_sendto(&ipa, ntohs(sin->sin_port), (uint8_t *)buf, len)) {
             return len;
         }
-
         return 0;
+    }
+
+    if (IS_TCP_SOCK(fd)) {
+        if (sk->module.tcp) {
+            if (tcp_status(sk->module.tcp) == DTS_NET_TCP_STATE_ESTABLISHED) {
+                return tcp_send(sk->module.tcp, (uint8_t *)buf, len);
+            }
+            return 0;
+        }
     }
     
     return -EINVAL;
 }
 
-ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+ssize_t recvfrom(int fd, void *buf, size_t len, int flags,
                  struct sockaddr *src_addr, socklen_t *addrlen)
 {
     ssize_t rc = 0;
 
-    if (IS_ERROR_SOCK(sockfd)) {
+    if (!IS_UDP_SOCK(fd) || !(flags & MSG_DONTWAIT)) {
         return -EINVAL;
     }
 
-    if (!(flags & MSG_DONTWAIT)) {
-        return -EINVAL;
-    }
+    to_socket(fd)->rx_buff = (uint8_t *)buf;
+    to_socket(fd)->rx_size = len;
 
-    sock_data[sockfd].rx_buff = (uint8_t *)buf;
-    sock_data[sockfd].rx_size = len;
-
-    if (sock_data[sockfd].rx_cnt > 0) {
-        rc = sock_data[sockfd].rx_cnt;
-        sock_data[sockfd].rx_cnt = 0;
+    if (to_socket(fd)->rx_cnt > 0) {
+        rc = to_socket(fd)->rx_cnt;
+        to_socket(fd)->rx_cnt = 0;
     }
 
     return rc;
+}
+
+#include <stdlib.h>
+int connect(int fd, const struct sockaddr *dest_addr, socklen_t addrlen)
+{
+    socket_t *sk = to_socket(fd);
+
+    if (IS_TCP_SOCK(fd)) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)dest_addr;
+        ip_addr_t dest;
+        nacv(sin, &dest);
+        ip_t *ip = ip_find_netif(&dest);
+        if (ip) {
+            for (int i = 0; i < 3; ++i) {
+                sk->module.tcp = tcp_open(&ip->addr, (rand()&0xFBFF)+1024, 
+                    &dest, ntohs(sin->sin_port));
+                if (sk->module.tcp) {
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+ssize_t send(int fd, const void *buf, size_t len, int flags)
+{
+    return sendto(fd, buf, len, flags, NULL, 0);
 }

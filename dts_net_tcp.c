@@ -471,6 +471,7 @@ void open_when_closed(tcp_t *tcp)
 {
     /// init tcb vars
     tcp->snd.una = tcp->snd.iss = tcp_generate_isn();
+    // Specification said: set snd.nxt <- iss+1, but we not do it.
     tcp->snd.nxt = tcp->snd.iss;//+1;
 
     if (tcp->passive) {
@@ -998,10 +999,12 @@ size_t recv_when_established(tcp_t *tcp, uint8_t *data, size_t size)
         size_t rx_sz = dblk_size(rx);
         if (rx_sz <= size) {
             dblk_copy_to(rx, data, rx_sz);
+            dblk_delete(rx);
             return rx_sz;
         }
         else {
             dblk_copy_to(rx, data, size); 
+            dblk_delete(rx);
             // TODO: buff insufficient!!!
             return size;
         }

@@ -51,6 +51,8 @@ typedef struct dts_net_tcp_segment
     dts_net_dblk_t *options;
     dts_net_dblk_t *payload;
     dts_net_dblk_t *raw_data;
+
+    dts_net_ip_datagram_t *datagram;
 } dts_net_tcp_segment_t;
 
 typedef struct

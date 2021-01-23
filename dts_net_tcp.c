@@ -271,6 +271,7 @@ void tcp_ip_recv(ip_t *ip, ip_datagram_t *dg)
         // find which tcp
         list_foreach(tcp_t, tcp, &tcp_list, {
             if ((*tcp)->localhost == ip && (*tcp)->port == seg.dest_port) {
+                seg.datagram = dg;
                 list_enqueue((list_t *)&((*tcp)->rx_segs), &seg);
                 void tcp_received(tcp_t *);
                 tcp_received((*tcp));
@@ -316,7 +317,11 @@ static int tcp_send_ctrl_seg(tcp_t *tcp, uint32_t seq, uint32_t ack, uint16_t fl
         &tcp->localhost->addr, &tcp->dest, 
         IP_PROTOCOL_TCP, 0);
     tcp_pack(&seg);
-    return tcp_ip_send(tcp, &seg);
+    if (tcp_ip_send(tcp, &seg)) {
+        tcp->snd.nxt += tcp_segment_length(&seg);
+        return 1;
+    }
+    return 0;
 }
 static void tcp_retransmit(tcp_t *tcp)
 {
@@ -388,6 +393,7 @@ static int tcp_handle_data(tcp_t *tcp, tcp_segment_t *dat)
             seg_len = seg_len > tcp->rcv.wnd ? tcp->rcv.wnd : seg_len;
             dblk_t *rx = dblk_node_new_with_buff(seg_len);
             if (rx) {
+                dblk_copy_from(rx, dat->payload->data, seg_len);
                 list_enqueue((list_t*)&tcp->rx_data, rx);
                 tcp->rcv.nxt += seg_len;
                 // if there is a seg in the transmitting queue
@@ -463,14 +469,14 @@ static int tcp_handle_fin_ack(tcp_t *tcp, tcp_segment_t *seg)
 // EVENT OPEN
 void open_when_closed(tcp_t *tcp)
 {
+    /// init tcb vars
+    tcp->snd.una = tcp->snd.iss = tcp_generate_isn();
+    tcp->snd.nxt = tcp->snd.iss;//+1;
+
     if (tcp->passive) {
         tcp->state = TCP_STATE_LISTEN;
     }
     else {
-        /// init tcb vars
-        tcp->snd.una = tcp->snd.iss = tcp_generate_isn();
-        tcp->snd.nxt = tcp->snd.iss+1;
-
         // send syn
         tcp->tx_seg = mem_alloc_tcp_segment();
         tcp->tx_seg->src_port = tcp->port;
@@ -483,10 +489,9 @@ void open_when_closed(tcp_t *tcp)
         pseudo_header_new_from_stack(&tcp->tx_seg->psdhdr, 
             &tcp->localhost->addr, &tcp->dest, IP_PROTOCOL_TCP, 0);
         tcp_pack(tcp->tx_seg);
-        tcp_ip_send(tcp, tcp->tx_seg);
+        tcp->snd.nxt += tcp_segment_length(tcp->tx_seg);
+        tcp_retransmit(tcp);
         tcp->state = TCP_STATE_SYN_SENT;
-        //sys_timer_start(&tcp->ctmr, 3);
-        timer_start(&tcp->tmr, 3);
     }
 }
 static void (*open_event_process[TCP_STATE_COUNT])(tcp_t *t) = 
@@ -510,14 +515,16 @@ tcp_t *tcp_open(ip_addr_t *local, int port, ip_addr_t *dest, int dest_port)
         if (tcp) {
             memset(tcp, 0, sizeof(tcp_t));
             tcp->localhost = ip;
-            tcp->port = tcp_free_port();
-            tcp->dest = *dest;
+            tcp->port = port;//tcp_free_port();
             tcp->dest_port = dest_port;
             tcp->rcv.wnd = 1500;
             tcp->state = TCP_STATE_CLOSED;
-            // void tcp_timeout(void *x);
-            // tcp->ctmr.callback = tcp_timeout;
-            // tcp->ctmr.data = tcp;
+            if (dest == NULL) {
+                tcp->passive = 1;
+            }
+            else {
+                tcp->dest = *dest;
+            }
             timer_init(&tcp->tmr, sys_tick_s);
             list_enqueue(&tcp_list, tcp);
             open_event_process[tcp->state](tcp);
@@ -548,6 +555,129 @@ void tcp_timeout(void *tcp)
 }
 
 // EVENT SEGMENT ARRIVES
+static int process_received_seq(tcp_t *tcp, tcp_segment_t *seg)
+{
+	size_t seg_len = tcp_segment_length(seg);
+
+    /* 1. check sequence number
+    */
+    /*
+    If the RCV.WND is zero, no segments will be acceptable, but
+    special allowance should be made to accept valid ACKs, URGs and
+    RSTs.
+    */
+    if (tcp->rcv.wnd == 0) {
+        if (seg_len == 0) {
+            if (seg->seq == tcp->rcv.nxt) {
+                if (SEG_CTRL_A(seg)) {
+                    // TODO
+                }
+                if (SEG_CTRL_R(seg)) {
+                    // TODO
+                }
+                if (SEG_CTRL_U(seg)) {
+                    // TODO
+                }
+            }
+        }
+        else {
+            goto seg_unacceptable;
+        }
+        return 0;
+    }
+
+    if (seg_len == 0) {
+        // RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
+        if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq, 
+            SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
+            goto seg_unacceptable;
+        }
+    }
+    else {
+        // RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
+        if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq, 
+            SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
+            if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq+seg_len-1, 
+                SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
+                goto seg_unacceptable;
+            }
+        }
+    }
+
+    return 1;
+
+seg_unacceptable:
+    /*
+    If an incoming segment is not acceptable, an acknowledgment
+    should be sent in reply (unless the RST bit is set, if so drop
+    the segment and return):
+
+        <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
+    
+    After sending the acknowledgment, drop the unacceptable segment
+    and return.
+    */
+    if (!SEG_CTRL_R(seg)) {
+        tcp_send_ctrl_seg(tcp, 
+            tcp->snd.nxt, tcp->rcv.nxt, SEG_FLAG_ACK);
+    }
+    return 0;
+}
+void received_when_listen(tcp_t *tcp)
+{
+    tcp_segment_t *seg = list_dequeue((list_t *)&tcp->rx_segs);
+    if (seg) {
+        /* 1. check for an RST
+        An incoming RST should be ignored.  Return
+        */
+        if (SEG_CTRL_R(seg)) {
+            return;
+        }
+
+        /* 2. check for an ACK
+        Any acknowledgment is bad if it arrives on a connection still in
+        the LISTEN state.  An acceptable reset segment should be formed
+        for any arriving ACK-bearing segment.  The RST should be
+        formatted as follows:
+
+          <SEQ=SEG.ACK><CTL=RST>
+
+        Return.
+        */
+        if (SEG_CTRL_A(seg)) {
+            tcp_send_ctrl_seg(tcp, seg->ack, 0, SEG_FLAG_RST);
+        }
+        
+        /* 3. check for a SYN
+
+        ...
+
+        Set RCV.NXT to SEG.SEQ+1, IRS is set to SEG.SEQ and any other
+        control or text should be queued for processing later.  ISS
+        should be selected and a SYN segment sent of the form:
+
+          <SEQ=ISS><ACK=RCV.NXT><CTL=SYN,ACK>
+
+        SND.NXT is set to ISS+1 and SND.UNA to ISS.  The connection
+        state should be changed to SYN-RECEIVED.  Note that any other
+        incoming control or data (combined with SYN) will be processed
+        in the SYN-RECEIVED state, but processing of SYN and ACK should
+        not be repeated.  If the listen was not fully specified (i.e.,
+        the foreign socket was not fully specified), then the
+        unspecified fields should be filled in now.
+        */
+        if (SEG_CTRL_S(seg)) {
+            tcp->rcv.nxt = seg->seq+1;
+            tcp->rcv.irs = seg->seq;
+            tcp->dest_port = seg->src_port;
+            tcp->dest = seg->datagram->header.src;
+            if (tcp_send_ctrl_seg(tcp, tcp->snd.iss, tcp->rcv.nxt, 
+                SEG_FLAG_SYN|SEG_FLAG_ACK)) {
+				tcp->state = TCP_STATE_SYN_RECEIVED;
+			}
+        }
+    }
+}
 void received_when_syn_sent(tcp_t *tcp)
 {
     tcp_segment_t *seg = list_dequeue((list_t *)&tcp->rx_segs);
@@ -589,57 +719,85 @@ void received_when_syn_sent(tcp_t *tcp)
         
     }
 }
+void received_when_syn_received(tcp_t *tcp)
+{
+    tcp_segment_t *seg = list_dequeue((list_t *)&tcp->rx_segs);
+    if (seg) {
+        /* 1. check the sequence number */
+        if (!process_received_seq(tcp, seg)) {
+            return;
+        }
+
+        /* 2. check the RST bit
+        If the RST bit is set
+
+          If this connection was initiated with a passive OPEN (i.e.,
+          came from the LISTEN state), then return this connection to
+          LISTEN state and return.  The user need not be informed.  If
+          this connection was initiated with an active OPEN (i.e., came
+          from SYN-SENT state) then the connection was refused, signal
+          the user "connection refused".  In either case, all segments
+          on the retransmission queue should be removed.  And in the
+          active OPEN case, enter the CLOSED state and delete the TCB,
+          and return.
+        */
+        if (SEG_CTRL_R(seg)) {
+            if (tcp->passive) {
+                tcp->state = TCP_STATE_LISTEN;
+            }
+            else {
+                tcp->state = TCP_STATE_CLOSED;
+            }
+            return;
+        }
+
+        /* 5. check the ACK field
+        if the ACK bit is off drop the segment and return
+
+        if the ACK bit is on
+
+            If SND.UNA =< SEG.ACK =< SND.NXT then enter ESTABLISHED state
+            and continue processing.
+
+                If the segment acknowledgment is not acceptable, form a
+                reset segment,
+
+                <SEQ=SEG.ACK><CTL=RST>
+
+                and send it.
+        */
+        if (SEG_CTRL_A(seg)) {
+            if (sncmp(tcp->snd.una, SN_LE, seg->ack, SN_LE, tcp->snd.nxt)) {
+                tcp->snd.una = seg->ack;
+                tcp->state = TCP_STATE_ESTABLISHED;
+            }
+            else {
+                tcp_send_ctrl_seg(tcp, seg->ack, 0, SEG_FLAG_RST);
+            }
+        }
+        else {
+            return;
+        }
+
+        /* 8. check the FIN bit
+
+        Enter the CLOSE-WAIT state.
+        */
+        if (SEG_CTRL_F(seg)) {
+            tcp->state = TCP_STATE_CLOSE_WAIT;
+        }
+    }
+}
 void received_when_established(tcp_t *tcp)
 {
     tcp_segment_t *seg = list_dequeue((list_t *)&tcp->rx_segs);
     if (!seg) {
         return;
     }
-	size_t seg_len = tcp_segment_length(seg);
-
-    /* 1. check sequence number
-    */
-    /*
-    If the RCV.WND is zero, no segments will be acceptable, but
-    special allowance should be made to accept valid ACKs, URGs and
-    RSTs.
-    */
-    if (tcp->rcv.wnd == 0) {
-        if (seg_len == 0) {
-            if (seg->seq == tcp->rcv.nxt) {
-                if (SEG_CTRL_A(seg)) {
-                    // TODO
-                }
-                if (SEG_CTRL_R(seg)) {
-                    // TODO
-                }
-                if (SEG_CTRL_U(seg)) {
-                    // TODO
-                }
-            }
-        }
-        else {
-            goto seg_unacceptable;
-        }
+	
+    /* 1. check the sequence number */
+    if (!process_received_seq(tcp, seg)) {
         return;
-    }
-
-    if (seg_len == 0) {
-        // RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
-        if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq, 
-            SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
-            goto seg_unacceptable;
-        }
-    }
-    else {
-        // RCV.NXT =< SEG.SEQ < RCV.NXT+RCV.WND
-        if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq, 
-            SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
-            if (!sncmp(tcp->rcv.nxt, SN_LE, seg->seq+seg_len-1, 
-                SN_LS, tcp->rcv.nxt+tcp->rcv.wnd)) {
-                goto seg_unacceptable;
-            }
-        }
     }
 
     /* 2. check the RST bit
@@ -697,22 +855,6 @@ void received_when_established(tcp_t *tcp)
 
 drop_seg:
     return;
-
-seg_unacceptable:
-    /*
-    If an incoming segment is not acceptable, an acknowledgment
-    should be sent in reply (unless the RST bit is set, if so drop
-    the segment and return):
-
-        <SEQ=SND.NXT><ACK=RCV.NXT><CTL=ACK>
-    
-    After sending the acknowledgment, drop the unacceptable segment
-    and return.
-    */
-    if (!SEG_CTRL_R(seg)) {
-        tcp_send_ctrl_seg(tcp, 
-            tcp->snd.nxt, tcp->rcv.nxt, SEG_FLAG_ACK);
-    }
 }
 void received_when_fin_wait_1(tcp_t *tcp)
 {
@@ -793,7 +935,9 @@ void received_when_last_ack(tcp_t *tcp)
 }
 static void (*received_event_process[TCP_STATE_COUNT])(tcp_t *t) = 
 {
+    [TCP_STATE_LISTEN] = received_when_listen,
     [TCP_STATE_SYN_SENT] = received_when_syn_sent,
+    [TCP_STATE_SYN_RECEIVED] = received_when_syn_received,
     [TCP_STATE_ESTABLISHED] = received_when_established,
     [TCP_STATE_FIN_WAIT_1] = received_when_fin_wait_1,
     [TCP_STATE_FIN_WAIT_2] = received_when_fin_wait_2,

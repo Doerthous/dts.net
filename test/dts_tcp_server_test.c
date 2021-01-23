@@ -5,7 +5,7 @@
 #define USING_DTS_COROUTINE
 #include <dts_coroutine.h>
 
-int tcp_client_test(void)
+int tcp_server_test(void)
 {
 	static tcp_t *tcp;
 	static timer_t tmr;
@@ -16,20 +16,18 @@ int tcp_client_test(void)
 	
 	{
 		DTS_NET_IPv4_ADDR_DEF(local, 10,0,0,2);
-		DTS_NET_IPv4_ADDR_DEF(remote, 10,0,0,1);
-		tcp = tcp_open(&local, 2000, &remote, 12346);
+		tcp = tcp_open(&local, 5000, NULL, 0);
 	}
 	
 	if (tcp) {
 		co_wait_until(tcp_status(tcp) == DTS_NET_TCP_STATE_ESTABLISHED);
 		
-		tcp_send(tcp, (uint8_t*)"Hello!", 6);
-		
 		timer_init(&tmr, sys_tick_s);
-		timer_start(&tmr, 10);
+		timer_start(&tmr, 1200);
 		
 		while (1) {
-			if (timer_expired(&tmr)) {
+			if (timer_expired(&tmr) || 
+                tcp_status(tcp) == DTS_NET_TCP_STATE_CLOSE_WAIT) {
 				tcp_close(tcp);
 				break;
 			}
@@ -37,7 +35,7 @@ int tcp_client_test(void)
 				uint8_t buff[16];
 				size_t sz;
 				if ((sz = tcp_recv(tcp, buff, 16)) > 0) {
-					sz++;
+                    tcp_send(tcp, buff, sz);
 				}
 			}
 			co_yield();

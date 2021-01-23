@@ -11,15 +11,15 @@
 
 int udp_client_test(void)
 {
-	static timer_t tmr;
-	struct sockaddr_in ser_addr;
-	//static uint8_t bp[2048];
+    static timer_t tmr;
+    struct sockaddr_in ser_addr;
+    //static uint8_t bp[2048];
 
     co_start();
 
     timer_init(&tmr, sys_tick_s);
     timer_start(&tmr, 2);
-	
+    
     while (1) {
         if (timer_expired(&tmr)) {
             timer_restart(&tmr);

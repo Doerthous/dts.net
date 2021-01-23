@@ -8,8 +8,8 @@
 
 int udp_server_test(void)
 {
-	static uint8_t buff[32];
-	static int server;
+    static uint8_t buff[32];
+    static int server;
     static struct sockaddr_in ser_addr;
 
     co_start();

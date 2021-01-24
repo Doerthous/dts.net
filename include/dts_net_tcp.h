@@ -104,7 +104,6 @@ size_t dts_net_tcp_send(dts_net_tcp_t *tcp, uint8_t *data, size_t size);
 
 enum
 {
-    DTS_NET_TCP_STATE_CLOSED,
     DTS_NET_TCP_STATE_LISTEN,
     DTS_NET_TCP_STATE_SYN_SENT,
     DTS_NET_TCP_STATE_SYN_RECEIVED,
@@ -112,9 +111,10 @@ enum
     DTS_NET_TCP_STATE_FIN_WAIT_1,
     DTS_NET_TCP_STATE_FIN_WAIT_2,
     DTS_NET_TCP_STATE_TIME_WAIT,
-	DTS_NET_TCP_STATE_CLOSE_WAIT,
-	DTS_NET_TCP_STATE_LAST_ACK,
+    DTS_NET_TCP_STATE_CLOSE_WAIT,
+    DTS_NET_TCP_STATE_LAST_ACK,
     DTS_NET_TCP_STATE_CLOSING,
+    DTS_NET_TCP_STATE_CLOSED,
 };
 int dts_net_tcp_status(dts_net_tcp_t *tcp);
 

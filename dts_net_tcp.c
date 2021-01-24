@@ -219,7 +219,6 @@ static int sncmp(uint32_t min, int op1, uint32_t x, int op2, uint32_t max)
 
 enum
 {
-    TCP_STATE_CLOSED,
     TCP_STATE_LISTEN,
     TCP_STATE_SYN_SENT,
     TCP_STATE_SYN_RECEIVED,
@@ -230,6 +229,7 @@ enum
     TCP_STATE_CLOSE_WAIT,
     TCP_STATE_LAST_ACK,
     TCP_STATE_CLOSING,
+    TCP_STATE_CLOSED,
     TCP_STATE_COUNT,
 };
 
@@ -238,12 +238,6 @@ enum
 uint32_t tcp_generate_isn(void)
 {
     return sys_tick_s();
-}
-
-// interface for user
-static int tcp_free_port(void)
-{
-    return 0x1234;
 }
 
 //
@@ -260,15 +254,31 @@ void tcp_ip_recv(ip_t *ip, ip_datagram_t *dg)
     dblk_node_new_from_stack(&seg.options, NULL, 0);
     if (tcp_unpack(&seg)) {
         // find which tcp
+        tcp_t *best_match = NULL;
+
         list_foreach(tcp_t, tcp, &tcp_list, {
             if ((*tcp)->localhost == ip && (*tcp)->port == seg.dest_port) {
-                seg.datagram = dg;
-                list_enqueue((list_t *)&((*tcp)->rx_segs), &seg);
-                void tcp_received(tcp_t *);
-                tcp_received((*tcp));
+                if ((*tcp)->passive) {
+                    if (ip_addr_equals(&(*tcp)->dest, &dg->header.src)) {
+                        if ((*tcp)->dest_port == seg.src_port) {
+                            best_match = (*tcp);
+                            break;
+                        }
+                    }
+                    best_match = (*tcp);
+                    continue;
+                }
+                best_match = (*tcp);
                 break;
             }
         });
+
+        if (best_match) {
+            seg.datagram = dg;
+            list_enqueue((list_t *)&(best_match->rx_segs), &seg);
+            void tcp_received(tcp_t *);
+            tcp_received(best_match);
+        }
     }
     return;
 }
@@ -490,7 +500,7 @@ void open_when_closed(tcp_t *tcp)
 }
 static void (*open_event_process[TCP_STATE_COUNT])(tcp_t *t) = 
 {
-    open_when_closed,
+    [TCP_STATE_CLOSED] = open_when_closed,
 };
 tcp_t *tcp_open(ip_addr_t *local, int port, ip_addr_t *dest, int dest_port)
 {
@@ -499,7 +509,7 @@ tcp_t *tcp_open(ip_addr_t *local, int port, ip_addr_t *dest, int dest_port)
 
     ip = ip_find_netif(local); 
     list_foreach(tcp_t, t, &tcp_list, {
-        if ((*t)->localhost == ip && (*t)->port == port) {
+        if ((*t)->localhost == ip && (*t)->port == port && !(*t)->passive) {
             return NULL;
         }
     });

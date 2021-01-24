@@ -43,6 +43,10 @@ typedef struct scoket {
         tcp_t *tcp;
     } module;
 
+    // init data
+    ip_t *ip;
+    int port;
+
     uint8_t *rx_buff;
     uint32_t rx_size;
     uint32_t rx_cnt;
@@ -134,22 +138,63 @@ static void nacv(struct sockaddr_in *in, ip_addr_t *out)
 
 int bind(int fd, const struct sockaddr *host_addr, int addrlen)
 {
+    socket_t *sk = to_socket(fd);
+    struct sockaddr_in *sin = (struct sockaddr_in *)host_addr;
+    ip_addr_t ipa;
+    nacv(sin, &ipa);
+    ip_t *ip = ip_find_netif(&ipa);
+
     if (IS_UDP_SOCK(fd)) {
-        struct sockaddr_in *sin = (struct sockaddr_in *)host_addr;
-        ip_addr_t ipa;
-        nacv(sin, &ipa);
-        ip_t *ip = ip_find_netif(&ipa);
         if (ip) {
-            to_socket(fd)->rx_buff = NULL;
-            to_socket(fd)->rx_size = 0;
-            to_socket(fd)->rx_cnt = 0;
+            sk->rx_buff = NULL;
+            sk->rx_size = 0;
+            sk->rx_cnt = 0;
             if (udp_bind(ip, ntohs(sin->sin_port), udp_recv, (void *)fd)) {
                 return 0;
             }
         }
     }
 
+    if (IS_TCP_SOCK(fd)) {
+        if (ip) {
+            sk->ip = ip;
+            sk->port = ntohs(sin->sin_port);
+            return 0;
+        }
+    }
+
     return -EINVAL;
+}
+
+int listen(int fd, int backlog)
+{
+    socket_t *sk = to_socket(fd);
+    if (IS_TCP_SOCK(fd)) {
+        sk->module.tcp = tcp_open(&sk->ip->addr, sk->port, NULL, 0);
+        if (sk->module.tcp) {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+int accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
+{
+    socket_t *sk = to_socket(fd);
+    if (IS_TCP_SOCK(fd)) {
+        if (tcp_status(sk->module.tcp) == DTS_NET_TCP_STATE_ESTABLISHED) {
+
+            int c = socket(sk->domain, sk->type, sk->protocol);
+            if (c > 0) {
+                to_socket(c)->module.tcp = sk->module.tcp;
+                sk->module.tcp = tcp_open(&sk->ip->addr, sk->port, NULL, 0);
+            }
+            return c;
+        }
+    }
+
+    return -1;
 }
 
 int close(int fd)
@@ -198,18 +243,30 @@ ssize_t sendto(int fd, const void *buf, size_t len, int flags,
 ssize_t recvfrom(int fd, void *buf, size_t len, int flags,
                  struct sockaddr *src_addr, socklen_t *addrlen)
 {
+    socket_t *sk = to_socket(fd);
     ssize_t rc = 0;
 
-    if (!IS_UDP_SOCK(fd) || !(flags & MSG_DONTWAIT)) {
-        return -EINVAL;
+    if (IS_UDP_SOCK(fd)) {
+        if (!(flags & MSG_DONTWAIT)) {
+            return -EINVAL;
+        }
+        sk->rx_buff = (uint8_t *)buf;
+        sk->rx_size = len;
+
+        if (sk->rx_cnt > 0) {
+            rc = sk->rx_cnt;
+            sk->rx_cnt = 0;
+        }
     }
 
-    to_socket(fd)->rx_buff = (uint8_t *)buf;
-    to_socket(fd)->rx_size = len;
-
-    if (to_socket(fd)->rx_cnt > 0) {
-        rc = to_socket(fd)->rx_cnt;
-        to_socket(fd)->rx_cnt = 0;
+    if (IS_TCP_SOCK(fd)) {
+        if (tcp_status(sk->module.tcp) == DTS_NET_TCP_STATE_ESTABLISHED) {
+            rc = tcp_recv(sk->module.tcp, (uint8_t*)buf, len);
+            return rc;
+        }
+        if (tcp_status(sk->module.tcp) > DTS_NET_TCP_STATE_ESTABLISHED) {
+            return -1;
+        }
     }
 
     return rc;
@@ -242,4 +299,9 @@ int connect(int fd, const struct sockaddr *dest_addr, socklen_t addrlen)
 ssize_t send(int fd, const void *buf, size_t len, int flags)
 {
     return sendto(fd, buf, len, flags, NULL, 0);
+}
+
+ssize_t recv(int fd, void *buf, size_t len, int flags)
+{
+    return recvfrom(fd, buf, len, flags, NULL, 0);
 }

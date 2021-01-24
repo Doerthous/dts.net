@@ -1,4 +1,4 @@
-﻿/*
+/*
    The MIT License (MIT)
 
    Copyright (c) 2020 Doerthous
@@ -26,6 +26,7 @@
 
 #include <dts/net/dblk.h>
 //#include <dts/net/mem.h>
+#include <string.h>
 extern void *dts_net_malloc(size_t size);
 extern void dts_net_free(void *ptr);
 #define malloc dts_net_malloc

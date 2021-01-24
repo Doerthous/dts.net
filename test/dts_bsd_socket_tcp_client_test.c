@@ -16,9 +16,9 @@ int dts_bsd_socket_tcp_client_test(void)
 {
     static timer_t tmr;
     struct sockaddr_in ser_addr;
-    static int cnt = 3;
-	const char *data = "012345";
-	static int client;
+    static int cnt = 5;
+    const char *data = "012345";
+    static int client;
     co_start();
 
     timer_init(&tmr, sys_tick_s);
@@ -33,13 +33,13 @@ int dts_bsd_socket_tcp_client_test(void)
             ser_addr.sin_addr.s_addr = inet_addr(SERVER_ADDR);
             ser_addr.sin_port = htons(SERVER_PORT);
             if (connect(client, (struct sockaddr*)&ser_addr, sizeof(ser_addr))) {
-				timer_restart(&tmr);
+                timer_restart(&tmr);
                 continue;
             }
         }
         co_wait_until(send(client, data, 6, 0) == 6);
         close(client);
-		timer_restart(&tmr);
+        timer_restart(&tmr);
     }
 
     co_exit();

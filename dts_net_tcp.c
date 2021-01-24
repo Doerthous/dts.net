@@ -992,22 +992,18 @@ void tcp_close(tcp_t *tcp)
 // EVENT RECEIVE
 size_t recv_when_established(tcp_t *tcp, uint8_t *data, size_t size) 
 {
-    while (list_length((list_t*)&tcp->rx_data)) {
-        dblk_t *rx = (dblk_t*)list_dequeue((list_t*)&tcp->rx_data);
-        size_t rx_sz = dblk_size(rx);
-        if (rx_sz <= size) {
-            dblk_copy_to(rx, data, rx_sz);
+    size_t do_size = 0;
+    size_t done_size = 0;
+    while (list_length((list_t*)&tcp->rx_data) && done_size < size) {
+        dblk_t *rx = (dblk_t*)list_queue_head((list_t*)&tcp->rx_data);
+        do_size = dblk_read(rx, data, size-done_size);
+        if (do_size < size-done_size) {
+            list_dequeue((list_t*)&tcp->rx_data);
             dblk_delete(rx);
-            return rx_sz;
         }
-        else {
-            dblk_copy_to(rx, data, size); 
-            dblk_delete(rx);
-            // TODO: buff insufficient!!!
-            return size;
-        }
+        done_size += do_size;
     }
-    return 0;
+    return done_size;
 }
 static size_t (*recv_event_process[TCP_STATE_COUNT])(tcp_t *, uint8_t *, size_t) = 
 {

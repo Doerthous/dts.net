@@ -44,7 +44,7 @@ int dts_bsd_socket_tcp_server_test(void)
             while (1) {
                 uint8_t buff[16];
                 ssize_t sz;
-                sz = recv(client, buff, sz, 0);
+                sz = recv(client, buff, 8, 0);
                 if (sz > 0) {
                     send(client, buff, sz, 0);
                 }

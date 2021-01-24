@@ -28,7 +28,7 @@ int udp_client_test(void)
                 memset(&ser_addr, 0, sizeof(ser_addr));
                 ser_addr.sin_family = AF_INET;
                 ser_addr.sin_addr.s_addr = inet_addr("10.0.0.1");
-                ser_addr.sin_port = htons(5000);
+                ser_addr.sin_port = htons(50002);
             }
             const char *data = "012345";
             sendto(client, data, 6, 0, (struct sockaddr*)&ser_addr, sizeof(ser_addr));

@@ -84,5 +84,33 @@ int main()
 
     dblk_list_delete(b1);
 
+
+    printf("--- dblk_seek, dblk_write, dblk_read test ---\n");
+    uint8_t mem[16];
+    size_t sz;
+    b1 = dblk_node_new_with_buff(256);
+    for (int i = 0; 1; ++i) {
+        snprintf(mem, 16, "Hello World [%d]", i%10);
+        if (!dblk_write(b1, mem, 16)) {
+            break;
+        }
+    }
+    printf("dblk_seek 0\n");
+    dblk_seek(b1, 0);
+    do {
+        if (sz = dblk_read(b1, mem, 16)) {
+            printf("size: %d, %s\n", sz, (char *)mem);
+        }
+    } while (sz);
+    printf("dblk_seek 64\n");
+    dblk_seek(b1, 64);
+    do {
+        if (sz = dblk_read(b1, mem, 16)) {
+            printf("size: %d, %s\n", sz, (char *)mem);
+        }
+    } while (sz);
+
+    dblk_list_delete(b1);
+
     return 0;
 }

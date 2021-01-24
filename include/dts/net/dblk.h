@@ -39,6 +39,7 @@
     .node_malloc = 0, \
     .vsize = 0, \
     .vmem = (void *)0, \
+    .offset = 0, \
 }
 
 #define dblk_t dts_net_dblk_t
@@ -67,6 +68,8 @@
 #define dblk_fragment dts_net_dblk_fragment
 #define dblk_merge dts_net_dblk_merge
 #define dblk_copy dts_net_dblk_copy
-
+#define dblk_seek dts_net_dblk_seek
+#define dblk_write dts_net_dblk_write
+#define dblk_read dts_net_dblk_read
 
 #endif // DBLK_H_

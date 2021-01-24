@@ -1,4 +1,4 @@
-/*
+﻿/*
    The MIT License (MIT)
 
    Copyright (c) 2020 Doerthous
@@ -25,7 +25,11 @@
 */
 
 #include <dts/net/dblk.h>
-#include <dts/net/mem.h>
+//#include <dts/net/mem.h>
+extern void *dts_net_malloc(size_t size);
+extern void dts_net_free(void *ptr);
+#define malloc dts_net_malloc
+#define free dts_net_free
 
 // Node
 static size_t dblk_node_copy_to(dblk_t *dblk, void *mem, size_t size)
@@ -72,6 +76,7 @@ dblk_t *dblk_node_init(dblk_t *dblk, uint8_t *data, uint16_t size)
         dblk->size = size;
         dblk->vsize = 0;
         dblk->vmem = NULL;
+        dblk->offset = 0;
     }
     return dblk;
 }
@@ -226,7 +231,7 @@ dblk_t *dblk_next(dblk_t * dblk)
         }
         dblk = dblk->next;
     }
-    
+
     return dblk;
 }
 
@@ -346,4 +351,70 @@ dblk_t *dblk_copy(dblk_t *dblk)
 		dblk_copy_to(dblk, cpy->data, cpy->size);
 	}
 	return cpy;
+}
+
+
+int dblk_seek(dblk_t *dblk, size_t offset)
+{
+    while (dblk) {
+        if (dblk->size > offset) {
+            dblk->offset = offset;
+            offset -= offset;
+        }
+        else {
+            dblk->offset = dblk->size;
+            offset -= dblk->size;
+        }
+        if (!dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+    
+    return 1;
+}
+
+
+size_t dblk_write(dblk_t *dblk, void *mem, size_t size)
+{
+    size_t do_size = 0;
+    size_t done_size = 0;
+
+    while (dblk && done_size < size) {
+        do_size = dblk->size - dblk->offset;
+        if (do_size > 0) {
+            do_size = do_size > size ? size : do_size;
+            memcpy(dblk->data+dblk->offset, mem, do_size);
+            dblk->offset += do_size;
+        }
+        done_size += do_size;
+        if (!dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+
+    return done_size;
+}
+
+size_t dblk_read(dblk_t *dblk, void *mem, size_t size)
+{
+    size_t do_size = 0;
+    size_t done_size = 0;
+
+    while (dblk && done_size < size) {
+        do_size = dblk->size - dblk->offset;
+        if (do_size > 0) {
+            do_size = do_size > size ? size : do_size;
+            memcpy(mem, dblk->data+dblk->offset, do_size);
+            dblk->offset += do_size;
+        }
+        done_size += do_size;
+        if (!dblk->more) {
+            break;
+        }
+        dblk = dblk->next;
+    }
+
+    return done_size;
 }

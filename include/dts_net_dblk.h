@@ -60,6 +60,8 @@ typedef struct dts_net_dblk
      */
     uint16_t vsize;
     struct dts_net_dblk *vmem;
+
+    size_t offset;
 } dts_net_dblk_t;
 
 // Node
@@ -246,5 +248,10 @@ dts_net_dblk_t *dts_net_dblk_fragment(const dts_net_dblk_t *dblk, size_t fsize);
 void dts_net_dblk_merge(dts_net_dblk_t *blk, dts_net_dblk_t *node);
 
 dts_net_dblk_t *dts_net_dblk_copy(dts_net_dblk_t *dblk);
+
+// Can not be used on vmem-Node now
+int dts_net_dblk_seek(dts_net_dblk_t *dblk, size_t offset);
+size_t dts_net_dblk_write(dts_net_dblk_t *dblk, void *mem, size_t size);
+size_t dts_net_dblk_read(dts_net_dblk_t *dblk, void *mem, size_t size);
 
 #endif // DTS_NET_DBLK_H_

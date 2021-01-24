@@ -81,7 +81,7 @@ dts_net_udp_ip_recv
 int
 dts_net_udp_sendto
 (
-    dts_net_ip_addr_t *dist,
+    dts_net_ip_addr_t *dest,
     uint16_t port,
     uint8_t *data,
     uint16_t size

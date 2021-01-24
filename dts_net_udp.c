@@ -89,20 +89,16 @@ size_t udp_pack(udp_datagram_t *dg)
 
 #include <dts/net/ip.h>
 #include <dts/datastruct/list.h>
-typedef struct { ip_t *ip; int port; } _addr_t;
 static list_t udp_list;
-static int list_match(void *n, void *d)
-{
-    udp_t *u = (udp_t *)n;
-    _addr_t *v = (_addr_t *)d;
-    return (u->low_level == v->ip) && (u->port == v->port);
-}
 static udp_t *find_udp_by_addr(ip_t *ip, int port)
 {
-	_addr_t val;
-	val.ip = ip;
-	val.port = port;
-	return (udp_t *)list_find(&udp_list, list_match, (void *)&val);
+    list_foreach(udp_t, udp, &udp_list, {
+        if (((*udp)->low_level == ip) && (*udp)->port == port) {
+            return (*udp);
+        }
+    });
+
+    return NULL;
 }
 
 #include <dts/net/mem.h>

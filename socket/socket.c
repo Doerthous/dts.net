@@ -28,9 +28,11 @@
 #include <dts/net/udp.h>
 #include <dts/net/tcp.h>
 #include <dts/net/ip.h>
+#include <dts/net/dblk.h>
 #include <dts/net/ether_arp.h>
 #include <dts/net/mem.h>
 #include <arpa/inet.h>
+#include <dts/datastruct/list.h>
 
 typedef struct scoket {
     void *next;
@@ -47,9 +49,7 @@ typedef struct scoket {
     ip_t *ip;
     int port;
 
-    uint8_t *rx_buff;
-    uint32_t rx_size;
-    uint32_t rx_cnt;
+    list_t rx_queue;
 } socket_t;
 
 #include <dts/datastruct/list.h>
@@ -90,17 +90,14 @@ MEM_ITEM_LIST_API(socket_t, socket, DTS_NET_SOCKET_MAX_COUNT);
 )
 
 #include <string.h>
-static void udp_recv(void * cb_data, uint8_t *data, uint32_t size)
+static void udp_recv(void *cb_data, uint8_t *data, uint32_t size)
 {
-    int fd = (int)cb_data;
+    socket_t *sk = to_socket((int)cb_data);
 
-    if (to_socket(fd)->rx_buff) {
-        size_t remain_size = to_socket(fd)->rx_size - to_socket(fd)->rx_cnt;
-        size = size > remain_size ? remain_size : size;
-
-        memcpy(to_socket(fd)->rx_buff, data, size);
-
-        to_socket(fd)->rx_cnt += size;
+    dblk_t *rx = dblk_node_new_with_buff(size);
+    if (rx) {
+        dblk_copy_from(rx, data, size);
+        list_enqueue(&sk->rx_queue, rx);
     }
 }
 
@@ -146,9 +143,7 @@ int bind(int fd, const struct sockaddr *host_addr, int addrlen)
 
     if (IS_UDP_SOCK(fd)) {
         if (ip) {
-            sk->rx_buff = NULL;
-            sk->rx_size = 0;
-            sk->rx_cnt = 0;
+            list_init(&sk->rx_queue);
             if (udp_bind(ip, ntohs(sin->sin_port), udp_recv, (void *)fd)) {
                 return 0;
             }
@@ -250,13 +245,19 @@ ssize_t recvfrom(int fd, void *buf, size_t len, int flags,
         if (!(flags & MSG_DONTWAIT)) {
             return -EINVAL;
         }
-        sk->rx_buff = (uint8_t *)buf;
-        sk->rx_size = len;
 
-        if (sk->rx_cnt > 0) {
-            rc = sk->rx_cnt;
-            sk->rx_cnt = 0;
+        size_t do_size = 0;
+        size_t done_size = 0;
+        while (list_length((list_t*)&sk->rx_queue) && done_size < len) {
+            dblk_t *rx = (dblk_t*)list_queue_head((list_t*)&sk->rx_queue);
+            do_size = dblk_read(rx, buf, len-done_size);
+            if (do_size < len-done_size) {
+                list_dequeue((list_t*)&sk->rx_queue);
+                dblk_delete(rx);
+            }
+            done_size += do_size;
         }
+        return done_size;
     }
 
     if (IS_TCP_SOCK(fd)) {

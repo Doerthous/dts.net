@@ -18,7 +18,9 @@
 
 - udp：UDP模块
 
-- tcp: TCP模块（TO BE CONTINUE）
+- tcp: TCP模块（基本OK，细节TO BE CONTINUE）
+
+- dhcp：DHCP模块（目前仅实现Client功能，可以动态获取IP，但状态处理尚不完整）
 
 - dblk：数据块（数据结构）模块，用于传递在各层之间的数据。
 

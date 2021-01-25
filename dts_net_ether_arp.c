@@ -34,15 +34,23 @@
 
 #include <dts/embedded/lib/timer.h>
 
+#define ETHERNET_BROADCAST_ADDRESS ((uint8_t *)"\xFF\xFF\xFF\xFF\xFF\xFF")
+
 static int ip_ether_send(ether_t *eth, ip_datagram_t *datagram)
 {
     ether_frame_t frame;
 
-    frame.dest_mac_addr = ether_arp_get_mac_address(eth,
-		datagram->header.dest.addr.v4);
-    if (!frame.dest_mac_addr) {
-        return 0;
+    if (ip_addr_broadcast(&datagram->header.dest)) {
+        frame.dest_mac_addr = ETHERNET_BROADCAST_ADDRESS;
     }
+    else {
+        frame.dest_mac_addr = ether_arp_get_mac_address(eth,
+            datagram->header.dest.addr.v4);
+        if (!frame.dest_mac_addr) {
+            return 0;
+        }
+    }
+
     frame.payload = datagram->raw_data;
     frame.type = ETHER_TYPE_IP;
     frame.data = malloc(2048);
@@ -93,7 +101,7 @@ uint8_t *ether_arp_get_mac_address(ether_t *ether, uint8_t *target_ip)
 
     uint8_t ether_frm_data[64];
     ether_frame_t frame;
-    frame.dest_mac_addr = (uint8_t *)"\xFF\xFF\xFF\xFF\xFF\xFF";
+    frame.dest_mac_addr = ETHERNET_BROADCAST_ADDRESS;
     frame.type = ETHER_TYPE_ARP;
 	dblk_t dblk = DATA_BLOCK(arp_pkt_data, 0);
     frame.payload = &dblk;
@@ -209,7 +217,11 @@ static int list_match_eth(void *n, void *d)
 }
 ip_t *ether_arp_get_ip(ether_t *eth)
 {
-    return ((nif_t * )list_find(&nif_list, list_match_eth, eth))->ip;
+    nif_t *nif = list_find(&nif_list, list_match_eth, eth);
+    if (nif) {
+        return nif->ip;
+    }
+    return NULL;
 }
 
 static int list_match_lan_addr(void *n, void *d)
@@ -222,5 +234,9 @@ static int list_match_lan_addr(void *n, void *d)
 }
 ip_t * ether_arp_get_ip_by_addr(ip_addr_t *addr)
 {
-    return ((nif_t * )list_find(&nif_list, list_match_lan_addr, addr))->ip;
+    nif_t *nif = list_find(&nif_list, list_match_lan_addr, addr);
+    if (nif) {
+        return nif->ip;
+    }
+    return NULL;
 }

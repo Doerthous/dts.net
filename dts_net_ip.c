@@ -232,7 +232,18 @@ int ip_addr_same_lan(ip_addr_t *a1, ip_addr_t *a2)
         a2u32 = au32(a2->addr.v4);
         a1mu32 = au32(a1->netmask.v4);
         a2mu32 = au32(a2->netmask.v4);
-        return ((a1u32&a1mu32) == (a2u32&a2mu32));
+        return ((a1u32&a1mu32) == (a2u32&a2mu32))
+            || ip_addr_broadcast(a1)
+            || ip_addr_broadcast(a2);
+    }
+
+    return 0;
+}
+
+int ip_addr_broadcast(ip_addr_t *a)
+{
+    if (a->version == 4) {
+        return au32(a->addr.v4) == 0xFFFFFFFF;
     }
 
     return 0;

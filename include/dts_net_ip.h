@@ -130,6 +130,7 @@ dts_net_ip_addr_t name = { .version = 4, .addr.v4 = {a1,a2,a3,a4}, };
  */
 int dts_net_ip_addr_equals(dts_net_ip_addr_t *a1, dts_net_ip_addr_t *a2);
 int dts_net_ip_addr_same_lan(dts_net_ip_addr_t *a1, dts_net_ip_addr_t *a2);
+int dts_net_ip_addr_broadcast(dts_net_ip_addr_t *a);
 
 
 typedef struct

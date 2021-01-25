@@ -38,6 +38,7 @@
 #define ip_ll_recv dts_net_ip_ll_recv
 #define ip_addr_equals  dts_net_ip_addr_equals
 #define ip_addr_same_lan  dts_net_ip_addr_same_lan
+#define ip_addr_broadcast dts_net_ip_addr_broadcast
 #define ip_find_netif dts_net_ip_find_netif
 
 #define IPv4_ADDR_DEF DTS_NET_IPv4_ADDR_DEF

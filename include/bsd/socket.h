@@ -38,6 +38,8 @@ struct in_addr {
     __be32	s_addr;
 };
 
+#define INADDR_ANY ((__be32)0xFFFFFFFF)
+
 #define __SOCK_SIZE__	16		/* sizeof(struct sockaddr)	*/
 struct sockaddr_in {
     sa_family_t	sin_family;	/* Address family		*/

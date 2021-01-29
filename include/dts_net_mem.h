@@ -33,9 +33,13 @@
 
 extern void dts_net_mem_init(void);
 
-extern void *dts_net_malloc(size_t size);
+#ifndef mem_size_t
+# define mem_size_t size_t
+#endif
+extern void *dts_net_malloc(mem_size_t size);
 extern void dts_net_free(void *ptr);
 
+#ifndef DTS_NET_MEM_BASIC_API
 #include <dts_net_udp.h>
 extern dts_net_udp_t *dts_net_mem_alloc_udp(void);
 extern void dts_net_mem_free_udp(dts_net_udp_t *udp);
@@ -49,5 +53,6 @@ extern void dts_net_mem_free_arpti(dts_net_ether_arp_ti_t *nif);
 #include <dts_net_ip.h>
 extern dts_net_ip_datagram_t *dts_net_mem_alloc_ip_datagram(void);
 extern void dts_net_mem_free_ip_datagram(dts_net_ip_datagram_t *datagram);
+#endif
 
 #endif // DTS_NET_MEM_H_

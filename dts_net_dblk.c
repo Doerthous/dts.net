@@ -25,12 +25,10 @@
 */
 
 #include <dts/net/dblk.h>
-//#include <dts/net/mem.h>
+#define DTS_NET_MEM_BASIC_API
+#include <dts/net/mem.h>
 #include <string.h>
-extern void *dts_net_malloc(size_t size);
-extern void dts_net_free(void *ptr);
-#define malloc dts_net_malloc
-#define free dts_net_free
+
 
 // Node
 static size_t dblk_node_copy_to(dblk_t *dblk, void *mem, size_t size)
